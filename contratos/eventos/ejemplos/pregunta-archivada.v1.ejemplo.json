@@ -1,0 +1,13 @@
+{
+  "idEvento": "a3c7e9f1-2b4d-4e6f-8a1c-3d5e7f9b1c2d",
+  "tipoEvento": "PreguntaArchivada",
+  "versionEvento": 1,
+  "fechaOcurrencia": "2026-10-05T10:00:00Z",
+  "origen": "servicio-editorial",
+  "idCorrelacion": null,
+  "datos": {
+    "preguntaId": "5c0e8d2a-7b1f-4c3d-9e2a-6f4b3c2d1e0f",
+    "motivo": "Contenido desactualizado",
+    "fechaArchivado": "2026-10-05T10:00:00Z"
+  }
+}

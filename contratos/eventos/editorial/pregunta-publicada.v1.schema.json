@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://banco-preguntas/contratos/eventos/editorial/pregunta-publicada.v1.schema.json",
+  "title": "PreguntaPublicada v1",
+  "description": "Evento de integración que emite servicio-editorial al publicar una Pregunta (exchange editorial.eventos, routing key pregunta.publicada). Lleva todo lo que servicio-evaluacion necesita para guardar su copia local como ítem cerrado. Ver CONTRATOS.md secciones 7.3, 7.4 y 7.8. Este esquema es ESTRICTO (additionalProperties: false) y describe lo que el PRODUCTOR debe enviar; el consumidor es tolerante (ignora campos desconocidos, regla 7.7.4) y no valida con este esquema.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "idEvento",
+    "tipoEvento",
+    "versionEvento",
+    "fechaOcurrencia",
+    "origen",
+    "idCorrelacion",
+    "datos"
+  ],
+  "properties": {
+    "idEvento": {
+      "description": "Identificador único del mensaje; base de la idempotencia del consumidor.",
+      "$ref": "#/$defs/uuid"
+    },
+    "tipoEvento": {
+      "description": "Nombre del evento.",
+      "const": "PreguntaPublicada"
+    },
+    "versionEvento": {
+      "description": "Versión del contrato del evento. Hoy siempre 1.",
+      "const": 1
+    },
+    "fechaOcurrencia": {
+      "description": "Cuándo ocurrió el hecho en el dominio (no cuándo se envió).",
+      "$ref": "#/$defs/fechaUtc"
+    },
+    "origen": {
+      "description": "Servicio que produce el evento.",
+      "const": "servicio-editorial"
+    },
+    "idCorrelacion": {
+      "description": "Id de correlación de la petición HTTP que originó el hecho, o null.",
+      "oneOf": [
+        { "$ref": "#/$defs/uuid" },
+        { "type": "null" }
+      ]
+    },
+    "datos": {
+      "description": "Datos específicos de PreguntaPublicada (sección 7.4).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "preguntaId",
+        "contexto",
+        "preguntaDirecta",
+        "opciones",
+        "letraCorrecta",
+        "clasificacion",
+        "nivelDificultad",
+        "fechaPublicacion"
+      ],
+      "properties": {
+        "preguntaId": {
+          "description": "Id de la Pregunta en Editorial; Evaluación lo usa como _id de su copia.",
+          "$ref": "#/$defs/uuid"
+        },
+        "contexto": {
+          "description": "Contexto de la pregunta. No vacío, máximo 2000 caracteres (RF-08).",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "preguntaDirecta": {
+          "description": "Enunciado de la pregunta directa. No vacío, máximo 500 caracteres (RF-09).",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "opciones": {
+          "description": "Exactamente cuatro opciones con letras A, B, C y D en ese orden, sin repetir (RF-10, D-01).",
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": { "$ref": "#/$defs/opcion" },
+          "prefixItems": [
+            { "properties": { "letra": { "const": "A" } } },
+            { "properties": { "letra": { "const": "B" } } },
+            { "properties": { "letra": { "const": "C" } } },
+            { "properties": { "letra": { "const": "D" } } }
+          ]
+        },
+        "letraCorrecta": {
+          "description": "Letra de la única opción correcta (D-01: 3 distractores + 1 correcta).",
+          "$ref": "#/$defs/letra"
+        },
+        "clasificacion": {
+          "description": "Clasificación académica: solo identificadores del catálogo (D-13).",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["competenciaId", "temaId", "subtemaId"],
+          "properties": {
+            "competenciaId": { "$ref": "#/$defs/uuid" },
+            "temaId": { "$ref": "#/$defs/uuid" },
+            "subtemaId": { "$ref": "#/$defs/uuid" }
+          }
+        },
+        "nivelDificultad": {
+          "description": "Nivel de dificultad (D-10).",
+          "enum": ["BAJO", "MEDIO", "ALTO"]
+        },
+        "fechaPublicacion": {
+          "description": "Fecha de publicación de la pregunta.",
+          "$ref": "#/$defs/fechaUtc"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "uuid": {
+      "description": "UUID v4 en texto, en minúsculas y con guiones (sección 4).",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "fechaUtc": {
+      "description": "Fecha ISO-8601 en UTC terminada en Z (sección 4).",
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "letra": {
+      "description": "Letra de opción: una mayúscula entre A y D.",
+      "enum": ["A", "B", "C", "D"]
+    },
+    "opcion": {
+      "description": "Opción de respuesta tal como la ve Evaluación (sin marca de correcta).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["letra", "texto"],
+      "properties": {
+        "letra": { "$ref": "#/$defs/letra" },
+        "texto": {
+          "description": "Texto de la opción. No vacío, máximo 300 caracteres (RF-13).",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        }
+      }
+    }
+  }
+}

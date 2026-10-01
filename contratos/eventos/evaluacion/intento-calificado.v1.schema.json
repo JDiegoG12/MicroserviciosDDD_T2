@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://banco-preguntas/contratos/eventos/evaluacion/intento-calificado.v1.schema.json",
+  "title": "IntentoDeSimulacroCalificado v1",
+  "description": "Evento de integración que emite servicio-evaluacion cuando un IntentoDeSimulacro queda CALIFICADO (exchange evaluacion.eventos, routing key intento.calificado). Hoy no tiene consumidor. Ver CONTRATOS.md secciones 7.3, 7.6 y 7.8. Este esquema es ESTRICTO (additionalProperties: false) y describe lo que el PRODUCTOR debe enviar. Reglas que el esquema no puede expresar y que el productor garantiza en su código: correctas <= totalPreguntas; puntaje = correctas / totalPreguntas x 100 redondeado a 2 decimales (en JSON 70.00 se serializa como 70, y es válido); la suma del desglose coincide con el total.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "idEvento",
+    "tipoEvento",
+    "versionEvento",
+    "fechaOcurrencia",
+    "origen",
+    "idCorrelacion",
+    "datos"
+  ],
+  "properties": {
+    "idEvento": {
+      "description": "Identificador único del mensaje; base de la idempotencia del consumidor.",
+      "$ref": "#/$defs/uuid"
+    },
+    "tipoEvento": {
+      "description": "Nombre del evento.",
+      "const": "IntentoDeSimulacroCalificado"
+    },
+    "versionEvento": {
+      "description": "Versión del contrato del evento. Hoy siempre 1.",
+      "const": 1
+    },
+    "fechaOcurrencia": {
+      "description": "Cuándo ocurrió el hecho en el dominio (no cuándo se envió).",
+      "$ref": "#/$defs/fechaUtc"
+    },
+    "origen": {
+      "description": "Servicio que produce el evento.",
+      "const": "servicio-evaluacion"
+    },
+    "idCorrelacion": {
+      "description": "Id de correlación de la petición HTTP que originó el hecho, o null.",
+      "oneOf": [
+        { "$ref": "#/$defs/uuid" },
+        { "type": "null" }
+      ]
+    },
+    "datos": {
+      "description": "Datos específicos de IntentoDeSimulacroCalificado (sección 7.6).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "intentoId",
+        "simulacroId",
+        "estudianteId",
+        "fechaInicio",
+        "fechaFinalizacion",
+        "finalizadoPor",
+        "calificacion",
+        "desglosePorCompetencia"
+      ],
+      "properties": {
+        "intentoId": {
+          "description": "Id del IntentoDeSimulacro.",
+          "$ref": "#/$defs/uuid"
+        },
+        "simulacroId": {
+          "description": "Id del Simulacro al que pertenece el intento.",
+          "$ref": "#/$defs/uuid"
+        },
+        "estudianteId": {
+          "description": "Id del estudiante (X-Usuario-Id de quien presentó el intento).",
+          "$ref": "#/$defs/uuid"
+        },
+        "fechaInicio": {
+          "description": "Fecha en que se inició el intento.",
+          "$ref": "#/$defs/fechaUtc"
+        },
+        "fechaFinalizacion": {
+          "description": "Fecha en que se finalizó el intento.",
+          "$ref": "#/$defs/fechaUtc"
+        },
+        "finalizadoPor": {
+          "description": "Quién o qué finalizó el intento.",
+          "enum": ["ESTUDIANTE", "TIEMPO_AGOTADO"]
+        },
+        "calificacion": {
+          "description": "Calificación global del intento (inmutable, INV-32).",
+          "$ref": "#/$defs/resultado"
+        },
+        "desglosePorCompetencia": {
+          "description": "Calificación desglosada por competencia del catálogo. Al menos un elemento: todo simulacro tiene al menos una pregunta (INV-26).",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["competenciaId", "totalPreguntas", "correctas", "puntaje"],
+            "properties": {
+              "competenciaId": { "$ref": "#/$defs/uuid" },
+              "totalPreguntas": { "$ref": "#/$defs/totalPreguntas" },
+              "correctas": { "$ref": "#/$defs/conteo" },
+              "puntaje": { "$ref": "#/$defs/puntaje" }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "uuid": {
+      "description": "UUID v4 en texto, en minúsculas y con guiones (sección 4).",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "fechaUtc": {
+      "description": "Fecha ISO-8601 en UTC terminada en Z (sección 4).",
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "conteo": {
+      "description": "Cantidad entera no negativa.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "totalPreguntas": {
+      "description": "Cantidad entera de preguntas, al menos 1 (un intento siempre califica al menos una pregunta).",
+      "type": "integer",
+      "minimum": 1
+    },
+    "puntaje": {
+      "description": "Número decimal de 0 a 100 redondeado a 2 decimales (sección 4).",
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "resultado": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["totalPreguntas", "correctas", "puntaje"],
+      "properties": {
+        "totalPreguntas": { "$ref": "#/$defs/totalPreguntas" },
+        "correctas": { "$ref": "#/$defs/conteo" },
+        "puntaje": { "$ref": "#/$defs/puntaje" }
+      }
+    }
+  }
+}

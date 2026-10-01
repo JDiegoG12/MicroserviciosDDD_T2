@@ -1,0 +1,22 @@
+# .dockerignore raíz. El contexto de construcción de las tres imágenes es la raíz
+# del repositorio (CONTRATOS.md §2), así que aquí se excluye lo que ninguna
+# imagen necesita, para que el contexto sea pequeño y no viajen credenciales.
+
+# Dependencias y resultados de compilación locales
+**/node_modules
+**/target
+**/__pycache__
+**/.venv
+**/dist
+**/coverage
+
+# Control de versiones, documentación y colecciones de Postman
+.git
+postman
+docs
+
+# Credenciales locales e IDEs
+.env
+**/.env
+**/.idea
+**/.vscode

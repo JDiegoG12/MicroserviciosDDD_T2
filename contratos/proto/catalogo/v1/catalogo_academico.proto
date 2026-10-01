@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package bancopreguntas.catalogo.v1;
+
+option java_multiple_files = true;
+option java_package = "co.edu.unicauca.bancopreguntas.contratos.catalogo.v1";
+option java_outer_classname = "CatalogoAcademicoProto";
+
+// Servicio publicado (Open Host Service) del Catálogo Académico.
+// Su lenguaje publicado (Published Language) es este archivo.
+service CatalogoAcademico {
+  // Verifica que la terna Competencia/Tema/Subtema exista y sea coherente
+  // (el Tema pertenece a la Competencia y el Subtema al Tema). INV-07, D-13.
+  rpc ValidarClasificacion (ValidarClasificacionSolicitud) returns (ValidarClasificacionRespuesta);
+}
+
+// Terna de identificadores (UUID en texto) que clasifica una Pregunta.
+message ValidarClasificacionSolicitud {
+  string competencia_id = 1;
+  string tema_id = 2;
+  string subtema_id = 3;
+}
+
+// Resultado de la validación. Una clasificación inválida NO es un error gRPC:
+// se responde OK con valida = false y el motivo.
+message ValidarClasificacionRespuesta {
+  bool valida = 1;
+  MotivoRechazo motivo = 2;   // MOTIVO_RECHAZO_NINGUNO cuando valida = true
+  string detalle = 3;         // Texto legible en español para mostrar al usuario
+}
+
+// Primer motivo encontrado, en el orden en que se evalúa.
+enum MotivoRechazo {
+  MOTIVO_RECHAZO_NINGUNO = 0;
+  MOTIVO_RECHAZO_COMPETENCIA_INEXISTENTE = 1;
+  MOTIVO_RECHAZO_TEMA_INEXISTENTE = 2;
+  MOTIVO_RECHAZO_TEMA_NO_PERTENECE_A_COMPETENCIA = 3;
+  MOTIVO_RECHAZO_SUBTEMA_INEXISTENTE = 4;
+  MOTIVO_RECHAZO_SUBTEMA_NO_PERTENECE_A_TEMA = 5;
+}

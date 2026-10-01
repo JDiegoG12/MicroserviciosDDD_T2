@@ -1,0 +1,60 @@
+# =============================================================================
+# .gitignore raíz · Banco de Preguntas Saber Pro (Taller 2)
+# =============================================================================
+
+# --- Variables de entorno (credenciales locales; se versiona solo .env.example)
+.env
+.env.*
+!.env.example
+
+# --- Java / Maven (servicio-editorial)
+target/
+*.class
+*.jar
+*.war
+!.mvn/wrapper/maven-wrapper.jar
+hs_err_pid*.log
+replay_pid*.log
+
+# --- Python (servicio-catalogo)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# --- Node / TypeScript (servicio-evaluacion)
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm/
+
+# --- Código generado de protobuf / gRPC (nunca se versiona, CONTRATOS.md §6)
+*_pb2.py
+*_pb2.pyi
+*_pb2_grpc.py
+**/generated-sources/
+
+# --- IDEs
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+.vscode/*
+!.vscode/extensions.json
+*.code-workspace
+
+# --- Sistema operativo y logs
+.DS_Store
+Thumbs.db
+*.log

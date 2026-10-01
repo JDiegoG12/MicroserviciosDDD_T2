@@ -1,0 +1,27 @@
+{
+  "idEvento": "6d1f3a0c-3b2e-4f7a-9c1d-2e3f4a5b6c7d",
+  "tipoEvento": "PreguntaPublicada",
+  "versionEvento": 1,
+  "fechaOcurrencia": "2026-10-01T15:30:00Z",
+  "origen": "servicio-editorial",
+  "idCorrelacion": "0b6f2c4e-1d3a-4e5f-8a7b-9c0d1e2f3a4b",
+  "datos": {
+    "preguntaId": "5c0e8d2a-7b1f-4c3d-9e2a-6f4b3c2d1e0f",
+    "contexto": "Un grupo de 5 estudiantes obtuvo las notas 3,0; 3,5; 4,0; 4,0 y 4,5.",
+    "preguntaDirecta": "¿Cuál es la moda del conjunto de notas?",
+    "opciones": [
+      { "letra": "A", "texto": "3,0" },
+      { "letra": "B", "texto": "3,8" },
+      { "letra": "C", "texto": "4,0" },
+      { "letra": "D", "texto": "4,5" }
+    ],
+    "letraCorrecta": "C",
+    "clasificacion": {
+      "competenciaId": "22222222-2222-4222-8222-000000000101",
+      "temaId": "22222222-2222-4222-8222-000000000201",
+      "subtemaId": "22222222-2222-4222-8222-000000000301"
+    },
+    "nivelDificultad": "BAJO",
+    "fechaPublicacion": "2026-10-01T15:30:00Z"
+  }
+}

@@ -1,0 +1,30 @@
+# CODEOWNERS · Banco de Preguntas Saber Pro (Taller 2)
+#
+# Dueños reales (CONTRATOS.md v1.1, sección 1):
+#   P1 (servicio-editorial)  -> @juanvec06
+#   P2 (servicio-evaluacion) -> @JDiegoG12
+#   P3 (servicio-catalogo)   -> @JuanDv1
+#
+# En GitHub la última regla que coincide gana, por eso las reglas generales van
+# primero y las específicas después.
+#
+# OJO: CODEOWNERS pide revisión a los dueños, pero con varios dueños listados en
+# una misma ruta basta con que apruebe UNO de ellos para poder hacer merge.
+# NO se configura protección de la rama main que exija las tres aprobaciones:
+# CONTRATOS.md v1.1 (secciones 1 y 3.6) dejó de exigir la aprobación de los
+# tres integrantes; un PR a lo compartido queda aprobado con uno solo.
+
+# Por defecto, cualquier archivo no listado abajo lo revisan los tres (basta uno).
+*                       @juanvec06 @JuanDv1 @JDiegoG12
+
+# Contratos compartidos e infraestructura común: los tres integrantes (basta uno).
+/contratos/             @juanvec06 @JuanDv1 @JDiegoG12
+/CONTRATOS.md           @juanvec06 @JuanDv1 @JDiegoG12
+/docker-compose.yml     @juanvec06 @JuanDv1 @JDiegoG12
+/postman/               @juanvec06 @JuanDv1 @JDiegoG12
+/scripts/               @juanvec06 @JuanDv1 @JDiegoG12
+
+# Cada servicio, su dueño.
+/servicio-editorial/    @juanvec06
+/servicio-evaluacion/   @JDiegoG12
+/servicio-catalogo/     @JuanDv1

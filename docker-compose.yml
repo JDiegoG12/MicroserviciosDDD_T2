@@ -1,0 +1,256 @@
+# =============================================================================
+# Banco de Preguntas Saber Pro · Taller 2 · docker-compose.yml (dueño: P3)
+#
+# Fuente de verdad: CONTRATOS.md, sección 9 (nombres, puertos y variables).
+# Este archivo solo se cambia por PR aprobado por al menos otro integrante
+# (no se exige la aprobación de los tres).
+#
+# Uso:
+#   cp .env.example .env
+#   docker compose up -d                                  -> solo infraestructura
+#   docker compose --profile servicios up -d --build      -> infraestructura + servicios
+# =============================================================================
+
+name: banco-preguntas
+
+# Zona horaria común: todas las fechas del sistema van en UTC (CONTRATOS.md §4 y §9.2).
+x-entorno-comun: &entorno-comun
+  TZ: UTC
+
+# Política de reinicio común para toda la infraestructura y los servicios.
+x-reinicio: &reinicio
+  restart: unless-stopped
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # INFRAESTRUCTURA (sin perfil: se levanta siempre con `docker compose up`)
+  # ---------------------------------------------------------------------------
+
+  # Broker de mensajes. 5672 = AMQP · 15672 = consola web de administración.
+  # El usuario y la clave se crean al primer arranque a partir de .env.
+  # `hostname` fijo para que RabbitMQ reutilice sus datos al reiniciar (el nombre
+  # del nodo depende del hostname y los datos persistidos están ligados a él).
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: rabbitmq
+    hostname: rabbitmq
+    <<: *reinicio
+    environment:
+      <<: *entorno-comun
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USUARIO:?Falta RABBITMQ_USUARIO. Copia .env.example a .env}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_CLAVE:?Falta RABBITMQ_CLAVE. Copia .env.example a .env}
+      RABBITMQ_DEFAULT_VHOST: /
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - datos-rabbitmq:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - red-banco-preguntas
+
+  # Base de datos de servicio-editorial (PostgreSQL 16, base `editorial`).
+  # Puerto 5433 publicado solo para depuración desde el equipo.
+  bd-editorial:
+    image: postgres:16
+    container_name: bd-editorial
+    <<: *reinicio
+    environment:
+      <<: *entorno-comun
+      PGTZ: UTC
+      POSTGRES_DB: editorial
+      POSTGRES_USER: ${EDITORIAL_BD_USUARIO:?Falta EDITORIAL_BD_USUARIO. Copia .env.example a .env}
+      POSTGRES_PASSWORD: ${EDITORIAL_BD_CLAVE:?Falta EDITORIAL_BD_CLAVE. Copia .env.example a .env}
+    ports:
+      - "5433:5432"
+    volumes:
+      - datos-bd-editorial:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - red-banco-preguntas
+
+  # Base de datos de servicio-catalogo (PostgreSQL 16, base `catalogo`).
+  # Puerto 5434 publicado solo para depuración desde el equipo.
+  # Las credenciales deben coincidir con las incluidas en CATALOGO_BD_URL.
+  bd-catalogo:
+    image: postgres:16
+    container_name: bd-catalogo
+    <<: *reinicio
+    environment:
+      <<: *entorno-comun
+      PGTZ: UTC
+      POSTGRES_DB: catalogo
+      POSTGRES_USER: ${BD_CATALOGO_USUARIO:?Falta BD_CATALOGO_USUARIO. Copia .env.example a .env}
+      POSTGRES_PASSWORD: ${BD_CATALOGO_CLAVE:?Falta BD_CATALOGO_CLAVE. Copia .env.example a .env}
+    ports:
+      - "5434:5432"
+    volumes:
+      - datos-bd-catalogo:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - red-banco-preguntas
+
+  # Base de datos de servicio-evaluacion (MongoDB 7, base `evaluacion`).
+  # SIN AUTENTICACIÓN, de forma INTENCIONAL (CONTRATOS.md §9.2): solo es
+  # accesible dentro de la red Docker y en el puerto de depuración local;
+  # es aceptable para el taller. En producción se activaría la autenticación
+  # y EVALUACION_MONGO_URL llevaría credenciales.
+  # Puerto 27017 publicado solo para depuración desde el equipo.
+  bd-evaluacion:
+    image: mongo:7
+    container_name: bd-evaluacion
+    <<: *reinicio
+    environment:
+      <<: *entorno-comun
+    ports:
+      - "27017:27017"
+    volumes:
+      - datos-bd-evaluacion:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+    networks:
+      - red-banco-preguntas
+
+  # ---------------------------------------------------------------------------
+  # MICROSERVICIOS (perfil `servicios`)
+  # Solo se levantan con `--profile servicios`, porque sus Dockerfiles los crea
+  # cada dueño en la fase 1. El contexto de construcción es la RAÍZ del
+  # repositorio para que cada imagen pueda copiar /contratos (CONTRATOS.md §2).
+  # Dentro de Docker los hosts son los nombres de servicio, nunca `localhost`.
+  # ---------------------------------------------------------------------------
+
+  # Gestión Editorial de Preguntas · Java 21 · Spring Boot 3 · dueño P1.
+  # REST en 8081. Cliente gRPC del catálogo y productor de eventos en RabbitMQ.
+  servicio-editorial:
+    profiles: ["servicios"]
+    build:
+      context: .
+      dockerfile: servicio-editorial/Dockerfile
+    image: banco-preguntas/servicio-editorial:local
+    container_name: servicio-editorial
+    <<: *reinicio
+    environment:
+      <<: *entorno-comun
+      EDITORIAL_PUERTO_HTTP: ${EDITORIAL_PUERTO_HTTP:-8081}
+      EDITORIAL_BD_URL: ${EDITORIAL_BD_URL:-jdbc:postgresql://bd-editorial:5432/editorial}
+      EDITORIAL_BD_USUARIO: ${EDITORIAL_BD_USUARIO:?Falta EDITORIAL_BD_USUARIO. Copia .env.example a .env}
+      EDITORIAL_BD_CLAVE: ${EDITORIAL_BD_CLAVE:?Falta EDITORIAL_BD_CLAVE. Copia .env.example a .env}
+      CATALOGO_GRPC_HOST: ${CATALOGO_GRPC_HOST:-servicio-catalogo}
+      CATALOGO_GRPC_PUERTO: ${CATALOGO_GRPC_PUERTO:-50051}
+      RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq}
+      RABBITMQ_PUERTO: ${RABBITMQ_PUERTO:-5672}
+      RABBITMQ_USUARIO: ${RABBITMQ_USUARIO:?Falta RABBITMQ_USUARIO. Copia .env.example a .env}
+      RABBITMQ_CLAVE: ${RABBITMQ_CLAVE:?Falta RABBITMQ_CLAVE. Copia .env.example a .env}
+    ports:
+      - "8081:8081"
+    depends_on:
+      bd-editorial:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/salud"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    networks:
+      - red-banco-preguntas
+
+  # Catálogo Académico · Python 3.12 · FastAPI · dueño P3.
+  # REST en 8082 y servidor gRPC CatalogoAcademico en 50051 (mismo proceso).
+  # No usa RabbitMQ.
+  servicio-catalogo:
+    profiles: ["servicios"]
+    build:
+      context: .
+      dockerfile: servicio-catalogo/Dockerfile
+    image: banco-preguntas/servicio-catalogo:local
+    container_name: servicio-catalogo
+    <<: *reinicio
+    environment:
+      <<: *entorno-comun
+      CATALOGO_PUERTO_HTTP: ${CATALOGO_PUERTO_HTTP:-8082}
+      CATALOGO_PUERTO_GRPC: ${CATALOGO_PUERTO_GRPC:-50051}
+      CATALOGO_BD_URL: ${CATALOGO_BD_URL:?Falta CATALOGO_BD_URL. Copia .env.example a .env}
+    ports:
+      - "8082:8082"
+      - "50051:50051"
+    depends_on:
+      bd-catalogo:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/salud"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - red-banco-preguntas
+
+  # Evaluación y Simulacros · TypeScript · Node 20 · NestJS 10 · dueño P2.
+  # REST en 8083. Consume la cola evaluacion.preguntas y publica intento.calificado.
+  servicio-evaluacion:
+    profiles: ["servicios"]
+    build:
+      context: .
+      dockerfile: servicio-evaluacion/Dockerfile
+    image: banco-preguntas/servicio-evaluacion:local
+    container_name: servicio-evaluacion
+    <<: *reinicio
+    environment:
+      <<: *entorno-comun
+      EVALUACION_PUERTO_HTTP: ${EVALUACION_PUERTO_HTTP:-8083}
+      EVALUACION_MONGO_URL: ${EVALUACION_MONGO_URL:-mongodb://bd-evaluacion:27017/evaluacion}
+      RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq}
+      RABBITMQ_PUERTO: ${RABBITMQ_PUERTO:-5672}
+      RABBITMQ_USUARIO: ${RABBITMQ_USUARIO:?Falta RABBITMQ_USUARIO. Copia .env.example a .env}
+      RABBITMQ_CLAVE: ${RABBITMQ_CLAVE:?Falta RABBITMQ_CLAVE. Copia .env.example a .env}
+    ports:
+      - "8083:8083"
+    depends_on:
+      bd-evaluacion:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/salud"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - red-banco-preguntas
+
+# Volúmenes con nombre: los datos sobreviven a `docker compose down`
+# (se borran solo con `docker compose down -v`).
+volumes:
+  datos-rabbitmq:
+  datos-bd-editorial:
+  datos-bd-catalogo:
+  datos-bd-evaluacion:
+
+# Red interna común. Dentro de ella cada contenedor se alcanza por su nombre.
+networks:
+  red-banco-preguntas:
+    name: red-banco-preguntas

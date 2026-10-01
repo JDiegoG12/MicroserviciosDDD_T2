@@ -1,0 +1,20 @@
+{
+  "idEvento": "b8e2d4f6-1a3c-4b5d-9e7f-0a2c4e6b8d1f",
+  "tipoEvento": "IntentoDeSimulacroCalificado",
+  "versionEvento": 1,
+  "fechaOcurrencia": "2026-10-01T16:10:00Z",
+  "origen": "servicio-evaluacion",
+  "idCorrelacion": "c1d3e5f7-9a2b-4c4d-a6e8-f0b2d4c6e8a1",
+  "datos": {
+    "intentoId": "d4f6a8c0-2e4a-4b6c-8d0f-1a3b5c7d9e2f",
+    "simulacroId": "e7a9c1e3-5b7d-4f9a-b1c3-d5e7f9a1b3c5",
+    "estudianteId": "11111111-1111-4111-8111-000000000006",
+    "fechaInicio": "2026-10-01T15:40:00Z",
+    "fechaFinalizacion": "2026-10-01T16:10:00Z",
+    "finalizadoPor": "ESTUDIANTE",
+    "calificacion": { "totalPreguntas": 10, "correctas": 7, "puntaje": 70.00 },
+    "desglosePorCompetencia": [
+      { "competenciaId": "22222222-2222-4222-8222-000000000101", "totalPreguntas": 6, "correctas": 5, "puntaje": 83.33 }
+    ]
+  }
+}

@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://banco-preguntas/contratos/eventos/editorial/pregunta-archivada.v1.schema.json",
+  "title": "PreguntaArchivada v1",
+  "description": "Evento de integración que emite servicio-editorial al archivar una Pregunta publicada (exchange editorial.eventos, routing key pregunta.archivada). servicio-evaluacion la excluye de simulacros nuevos. Ver CONTRATOS.md secciones 7.3, 7.5 y 7.8. Este esquema es ESTRICTO (additionalProperties: false) y describe lo que el PRODUCTOR debe enviar; el consumidor es tolerante (ignora campos desconocidos, regla 7.7.4) y no valida con este esquema.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "idEvento",
+    "tipoEvento",
+    "versionEvento",
+    "fechaOcurrencia",
+    "origen",
+    "idCorrelacion",
+    "datos"
+  ],
+  "properties": {
+    "idEvento": {
+      "description": "Identificador único del mensaje; base de la idempotencia del consumidor.",
+      "$ref": "#/$defs/uuid"
+    },
+    "tipoEvento": {
+      "description": "Nombre del evento.",
+      "const": "PreguntaArchivada"
+    },
+    "versionEvento": {
+      "description": "Versión del contrato del evento. Hoy siempre 1.",
+      "const": 1
+    },
+    "fechaOcurrencia": {
+      "description": "Cuándo ocurrió el hecho en el dominio (no cuándo se envió).",
+      "$ref": "#/$defs/fechaUtc"
+    },
+    "origen": {
+      "description": "Servicio que produce el evento.",
+      "const": "servicio-editorial"
+    },
+    "idCorrelacion": {
+      "description": "Id de correlación de la petición HTTP que originó el hecho, o null.",
+      "oneOf": [
+        { "$ref": "#/$defs/uuid" },
+        { "type": "null" }
+      ]
+    },
+    "datos": {
+      "description": "Datos específicos de PreguntaArchivada (sección 7.5).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["preguntaId", "motivo", "fechaArchivado"],
+      "properties": {
+        "preguntaId": {
+          "description": "Id de la Pregunta archivada en Editorial.",
+          "$ref": "#/$defs/uuid"
+        },
+        "motivo": {
+          "description": "Motivo del archivado, en texto legible. Obligatorio, de 1 a 500 caracteres; viene del cuerpo de POST /preguntas/{preguntaId}/archivado (CU-09).",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "fechaArchivado": {
+          "description": "Fecha en que se archivó la pregunta.",
+          "$ref": "#/$defs/fechaUtc"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "uuid": {
+      "description": "UUID v4 en texto, en minúsculas y con guiones (sección 4).",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "fechaUtc": {
+      "description": "Fecha ISO-8601 en UTC terminada en Z (sección 4).",
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    }
+  }
+}
