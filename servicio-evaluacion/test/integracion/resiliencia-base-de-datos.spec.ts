@@ -1,4 +1,5 @@
 import { execSync } from 'node:child_process';
+import { createServer } from 'node:net';
 import * as amqplib from 'amqplib';
 import mongoose, { Connection } from 'mongoose';
 import { GenericContainer, StartedTestContainer, Wait } from 'testcontainers';
@@ -6,7 +7,7 @@ import { RegistrarPreguntaArchivadaCasoUso } from '../../src/aplicacion/pregunta
 import { RegistrarPreguntaPublicadaCasoUso } from '../../src/aplicacion/preguntas-evaluables/registrar-pregunta-publicada.caso-uso';
 import { ConfiguracionServicio } from '../../src/infraestructura/configuracion/configuracion.servicio';
 import { ConexionRabbitMqServicio } from '../../src/infraestructura/mensajeria/conexion-rabbitmq.servicio';
-import { PreguntaEditorialConsumidor } from '../../src/infraestructura/mensajeria/pregunta-editorial.consumidor';
+import { PreguntaEditorialConsumidor } from '../../src/interfaces/mensajeria/pregunta-editorial.consumidor';
 import {
   asegurarTopologiaRabbitMq,
   COLA_EVALUACION_PREGUNTAS,
@@ -21,6 +22,28 @@ import { RegistroEventosProcesadosRepositorioMongo } from '../../src/infraestruc
 import { RelojFijo } from '../dobles/reloj-fijo';
 
 jest.setTimeout(300_000);
+
+/**
+ * Busca un puerto TCP libre del equipo, para fijarlo como puerto publicado
+ * del contenedor de Mongo (ver `beforeAll`): Docker reasigna el puerto del
+ * equipo cada vez que un contenedor con puerto "aleatorio" se reinicia (por
+ * ejemplo `49685` -> `49689`), y esta prueba necesita que el puerto se
+ * mantenga igual entre el `stop` y el `start` del contenedor.
+ */
+function obtenerPuertoLibre(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const servidor = createServer();
+    servidor.on('error', reject);
+    servidor.listen(0, () => {
+      const direccion = servidor.address();
+      if (direccion === null || typeof direccion === 'string') {
+        reject(new Error('No se pudo obtener un puerto libre.'));
+        return;
+      }
+      servidor.close(() => resolve(direccion.port));
+    });
+  });
+}
 
 async function esperar(condicion: () => boolean | Promise<boolean>, maximoMs: number, descripcion: string): Promise<void> {
   const inicio = Date.now();
@@ -46,13 +69,16 @@ describe('Resiliencia sin MongoDB (CONTRATOS.md 9.3.6 y 7.7.5, integracion con T
   let conexionRabbitServicio: ConexionRabbitMqServicio;
 
   beforeAll(async () => {
+    // Puerto fijo (no el "aleatorio" por defecto de Testcontainers): asi
+    // sobrevive al stop/start del contenedor mas abajo, sin que Docker lo
+    // reasigne a otro puerto del equipo.
+    puertoMongo = await obtenerPuertoLibre();
     contenedorMongo = await new GenericContainer('mongo:7')
-      .withExposedPorts(27017)
+      .withExposedPorts({ container: 27017, host: puertoMongo })
       .withWaitStrategy(Wait.forLogMessage(/Waiting for connections/))
       .start();
     idContenedorMongo = contenedorMongo.getId();
     hostMongo = contenedorMongo.getHost();
-    puertoMongo = contenedorMongo.getMappedPort(27017);
 
     contenedorRabbit = await new GenericContainer('rabbitmq:3.13-management')
       .withEnvironment({ RABBITMQ_DEFAULT_USER: 'banco', RABBITMQ_DEFAULT_PASS: 'banco123' })

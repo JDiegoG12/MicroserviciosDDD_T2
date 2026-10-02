@@ -10,6 +10,11 @@ import { RelojPuerto } from '../../aplicacion/puertos/salida/reloj.puerto';
  */
 @Injectable()
 export class RelojDelSistemaAdaptador implements RelojPuerto {
+  /**
+   * Hora actual del sistema.
+   *
+   * @returns La fecha y hora actuales.
+   */
   public ahora(): Date {
     return new Date();
   }

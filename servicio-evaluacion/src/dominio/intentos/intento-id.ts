@@ -1,4 +1,4 @@
-import { esUuidValido, generarUuid } from '../compartido/uuid';
+import { generarUuid, normalizarUuid } from '../compartido/uuid';
 import { SolicitudInvalidaExcepcion } from '../excepciones/solicitud-invalida.excepcion';
 
 /**
@@ -21,15 +21,17 @@ export class IntentoId {
    * Construye un IntentoId a partir de un texto existente, por ejemplo el
    * parametro de ruta `intentoId` de una peticion.
    *
-   * @param texto Texto a validar.
+   * @param texto Texto a validar. Un UUID canonico en mayusculas se
+   * acepta y se normaliza a minusculas (CONTRATOS.md seccion 4).
    * @returns El identificador construido.
    * @throws SolicitudInvalidaExcepcion Si `texto` no es un UUID valido.
    */
   public static desde(texto: string): IntentoId {
-    if (!esUuidValido(texto)) {
+    const normalizado = normalizarUuid(texto);
+    if (!normalizado) {
       throw new SolicitudInvalidaExcepcion('El intentoId debe ser un UUID valido.');
     }
-    return new IntentoId(texto);
+    return new IntentoId(normalizado);
   }
 
   /**

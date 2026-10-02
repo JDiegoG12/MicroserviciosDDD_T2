@@ -2,7 +2,7 @@ import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
 import { Rol, UsuarioActual } from '../../../aplicacion/compartido/usuario-actual';
-import { esUuidValido } from '../../../dominio/compartido/uuid';
+import { normalizarUuid } from '../../../dominio/compartido/uuid';
 import { SolicitudInvalidaExcepcion } from '../../../dominio/excepciones/solicitud-invalida.excepcion';
 import { CLAVE_RUTA_PUBLICA } from '../decoradores/ruta-publica.decorator';
 import { NoAutenticadoExcepcion } from '../excepciones/no-autenticado.excepcion';
@@ -18,15 +18,21 @@ const ROLES_VALIDOS = new Set<string>(Object.values(Rol));
  * (`UsuarioActual.exigirAlgunRol`, en `aplicacion`); esta guardia solo
  * construye la identidad y rechaza lo que CONTRATOS.md exige rechazar
  * antes de llegar al caso de uso.
- *
- * @throws NoAutenticadoExcepcion Si falta `X-Usuario-Id` o `X-Roles` (401).
- * @throws SolicitudInvalidaExcepcion Si `X-Usuario-Id` no es un UUID, o si
- * `X-Roles` trae un valor que no es uno de los cinco roles validos (400).
  */
 @Injectable()
 export class IdentidadGuardia implements CanActivate {
   constructor(private readonly reflector: Reflector) {}
 
+  /**
+   * Autoriza la peticion si trae una identidad valida, o si la ruta esta
+   * marcada con `@RutaPublica()`.
+   *
+   * @param contexto Contexto de ejecucion de Nest para la peticion actual.
+   * @returns `true` si la peticion puede continuar.
+   * @throws NoAutenticadoExcepcion Si falta `X-Usuario-Id` o `X-Roles` (401).
+   * @throws SolicitudInvalidaExcepcion Si `X-Usuario-Id` no es un UUID, o si
+   * `X-Roles` trae un valor que no es uno de los cinco roles validos (400).
+   */
   public canActivate(contexto: ExecutionContext): boolean {
     const esPublica = this.reflector.getAllAndOverride<boolean>(CLAVE_RUTA_PUBLICA, [
       contexto.getHandler(),
@@ -43,7 +49,10 @@ export class IdentidadGuardia implements CanActivate {
     if (!usuarioId || !rolesCrudos) {
       throw new NoAutenticadoExcepcion('Faltan los encabezados X-Usuario-Id y/o X-Roles (CONTRATOS.md 4.1).');
     }
-    if (!esUuidValido(usuarioId)) {
+    // Un UUID canonico en mayusculas se acepta y se normaliza a minusculas
+    // (CONTRATOS.md seccion 4).
+    const usuarioIdNormalizado = normalizarUuid(usuarioId);
+    if (!usuarioIdNormalizado) {
       throw new SolicitudInvalidaExcepcion('El encabezado X-Usuario-Id debe ser un UUID valido.');
     }
 
@@ -56,7 +65,7 @@ export class IdentidadGuardia implements CanActivate {
       }
     }
 
-    peticion.usuarioActual = new UsuarioActual(usuarioId, roles as Rol[]);
+    peticion.usuarioActual = new UsuarioActual(usuarioIdNormalizado, roles as Rol[]);
     return true;
   }
 }

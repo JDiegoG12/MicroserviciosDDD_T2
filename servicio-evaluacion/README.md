@@ -11,6 +11,11 @@ Mantiene una copia local de las preguntas publicadas (a partir de los eventos `P
 
 **Etapas 1 y 2 implementadas**: dominio, aplicación, persistencia MongoDB, consumidor y publicador de RabbitMQ, API REST con Swagger, y Dockerfile. Queda para la etapa 3 lo que el equipo defina a continuación (por ejemplo, Seguimiento Académico).
 
+## Notas tecnicas
+
+- **Mongoose 8.24.4, no la serie 9.x**: aunque Mongoose 9 ya soporta MongoDB 7 y Node 24, `@nestjs/mongoose` (de donde viene `MongooseModule`, usado en todo el servicio) todavia tiene abierto el seguimiento de su soporte a Mongoose 9 (ver `nestjs/mongoose#2665` en GitHub), aunque su `peerDependencies` ya declara `^9.0.0`. Se fija entonces la ultima version estable de la serie 8.x, la combinacion probada con `mongo:7` (CONTRATOS.md 9.2) y con `@nestjs/mongoose ^12`.
+- **Arranque sin base de datos (CONTRATOS.md 9.3.6)**: `MongooseModule.forRoot(...)` usa `lazyConnection: true` para que Nest no espere la conexion inicial al arrancar (el servicio queda `healthy` aunque Mongo aun no responda) y `bufferCommands: false` para que una operacion lanzada sin conexion falle de inmediato con 503 `BASE_DE_DATOS_NO_DISPONIBLE`, en vez de quedar encolada en silencio. El consumidor de RabbitMQ (`PreguntaEditorialConsumidor`) registra ademas un listener de `error` sobre la `Connection` de Mongoose: sin el, un fallo de la conexion inicial (`MongoServerSelectionError`) termina en una promesa rechazada sin capturar que tumba el proceso (ver `mongoose/lib/connection.js`, issue `Automattic/mongoose#14377`).
+
 ## Ejecutar localmente (sin Docker)
 
 ```bash

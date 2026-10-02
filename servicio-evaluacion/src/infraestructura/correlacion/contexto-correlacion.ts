@@ -1,8 +1,12 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { generarUuid, normalizarUuid } from '../../dominio/compartido/uuid';
 
 interface DatosDeCorrelacion {
   readonly idCorrelacion: string;
 }
+
+/** Nombre del encabezado HTTP de correlacion (CONTRATOS.md 4.1). */
+export const ENCABEZADO_CORRELACION = 'X-Id-Correlacion';
 
 /**
  * Contexto asincrono que lleva el `idCorrelacion` de la peticion HTTP (o
@@ -36,4 +40,33 @@ export function ejecutarConCorrelacion<T>(idCorrelacion: string, funcion: () => 
  */
 export function obtenerIdCorrelacionActual(): string | null {
   return almacenamiento.getStore()?.idCorrelacion ?? null;
+}
+
+/**
+ * Resuelve el `idCorrelacion` a partir del encabezado `X-Id-Correlacion`
+ * recibido (CONTRATOS.md 4.1): si no llega, o si no es un UUID valido, se
+ * genera uno nuevo. Un UUID canonico en mayusculas se acepta y se
+ * normaliza a minusculas (CONTRATOS.md seccion 4).
+ *
+ * La usan tanto `CorrelacionMiddleware` (caso normal) como
+ * `FiltroExcepcionesGlobal` (caso de respaldo: una peticion que fallo
+ * antes de que el middleware llegara a correr, por ejemplo un cuerpo JSON
+ * ilegible, ya que el body-parser de Express corre antes que los
+ * middlewares de Nest).
+ *
+ * @param encabezadoCrudo Valor crudo del encabezado `X-Id-Correlacion`, si llego.
+ * @returns El `idCorrelacion` a usar, y si se reemplazo el valor recibido
+ * por ser invalido.
+ */
+export function resolverIdCorrelacion(encabezadoCrudo: string | undefined): {
+  readonly idCorrelacion: string;
+  readonly eraInvalido: boolean;
+} {
+  if (!encabezadoCrudo) {
+    return { idCorrelacion: generarUuid(), eraInvalido: false };
+  }
+  const normalizado = normalizarUuid(encabezadoCrudo);
+  return normalizado
+    ? { idCorrelacion: normalizado, eraInvalido: false }
+    : { idCorrelacion: generarUuid(), eraInvalido: true };
 }

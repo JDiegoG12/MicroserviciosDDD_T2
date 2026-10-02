@@ -17,7 +17,7 @@ import { RegistrarPreguntaArchivadaCasoUso } from '../../src/aplicacion/pregunta
 import { RegistrarPreguntaPublicadaCasoUso } from '../../src/aplicacion/preguntas-evaluables/registrar-pregunta-publicada.caso-uso';
 import { ConfiguracionServicio } from '../../src/infraestructura/configuracion/configuracion.servicio';
 import { ConexionRabbitMqServicio } from '../../src/infraestructura/mensajeria/conexion-rabbitmq.servicio';
-import { PreguntaEditorialConsumidor } from '../../src/infraestructura/mensajeria/pregunta-editorial.consumidor';
+import { PreguntaEditorialConsumidor } from '../../src/interfaces/mensajeria/pregunta-editorial.consumidor';
 import { PublicadorEventosRabbitMqAdaptador } from '../../src/infraestructura/mensajeria/publicador-eventos-rabbitmq.adaptador';
 import {
   asegurarTopologiaRabbitMq,

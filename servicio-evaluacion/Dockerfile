@@ -18,8 +18,11 @@ WORKDIR /app
 COPY servicio-evaluacion/package.json servicio-evaluacion/package-lock.json ./
 RUN npm ci
 
-# El resto del codigo fuente (node_modules, dist, coverage y test quedan
-# fuera por el .dockerignore de la raiz, CONTRATOS.md 2).
+# El .dockerignore de la raiz (CONTRATOS.md 2) solo excluye node_modules,
+# dist y coverage: test/ SI llega a esta etapa de construccion (hace falta
+# para compilar con los tipos de @types/jest). Lo que mantiene test/ fuera
+# de la imagen final es la etapa 3 de abajo, que copia selectivamente solo
+# dist/, node_modules/ y package.json desde las etapas anteriores.
 COPY servicio-evaluacion/ ./
 RUN npm run build
 
