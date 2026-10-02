@@ -2,6 +2,7 @@ package co.edu.unicauca.bancopreguntas.editorial.aplicacion.casosuso;
 
 import co.edu.unicauca.bancopreguntas.editorial.aplicacion.comandos.ConsultarPreguntasConsulta;
 import co.edu.unicauca.bancopreguntas.editorial.aplicacion.resultados.PreguntaResumen;
+import co.edu.unicauca.bancopreguntas.editorial.aplicacion.seguridad.Rol;
 import co.edu.unicauca.bancopreguntas.editorial.aplicacion.seguridad.UsuarioActual;
 import co.edu.unicauca.bancopreguntas.editorial.dominio.modelo.comun.Pagina;
 import co.edu.unicauca.bancopreguntas.editorial.fabricas.Escenario;
@@ -11,6 +12,8 @@ import org.junit.jupiter.api.Test;
 
 import static co.edu.unicauca.bancopreguntas.editorial.fabricas.Afirmaciones.lanzaConCodigo;
 import static co.edu.unicauca.bancopreguntas.editorial.fabricas.DatosDePrueba.AUTOR;
+import static co.edu.unicauca.bancopreguntas.editorial.fabricas.DatosDePrueba.ESTUDIANTE;
+import static co.edu.unicauca.bancopreguntas.editorial.fabricas.DatosDePrueba.REVISOR_1;
 import static co.edu.unicauca.bancopreguntas.editorial.fabricas.DatosDePrueba.REVISOR_3;
 import static co.edu.unicauca.bancopreguntas.editorial.fabricas.Escenario.*;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -78,6 +81,61 @@ class ConsultarPreguntasCasoUsoTest {
         ConsultarPreguntasConsulta borradores = new ConsultarPreguntasConsulta(null, null, null, null, "BORRADOR",
                 null, null, null);
         assertThat(consultar(COMO_DOCENTE, borradores).contenido()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("AUTOR,DOCENTE ve la unión: sus preguntas en cualquier estado y todas las PUBLICADA (D-08)")
+    void autorYDocenteVeLaUnion() {
+        UsuarioActual autorYDocente = UsuarioActual.de(REVISOR_3, Rol.AUTOR, Rol.DOCENTE);
+
+        assertThat(consultar(autorYDocente, ConsultarPreguntasConsulta.sinFiltros()).contenido())
+                .extracting(PreguntaResumen::preguntaId)
+                .containsExactlyInAnyOrder(deOtroAutor, publicada);
+    }
+
+    @Test
+    @DisplayName("REVISOR,DOCENTE ve las asignadas y las PUBLICADA")
+    void revisorYDocenteVeLaUnion() {
+        UsuarioActual revisorYDocente = UsuarioActual.de(REVISOR_1, Rol.REVISOR, Rol.DOCENTE);
+
+        assertThat(consultar(revisorYDocente, ConsultarPreguntasConsulta.sinFiltros()).contenido())
+                .extracting(PreguntaResumen::preguntaId)
+                .containsExactlyInAnyOrder(enRevision, publicada);
+    }
+
+    @Test
+    @DisplayName("AUTOR,REVISOR ve las suyas y las asignadas")
+    void autorYRevisorVeLaUnion() {
+        UsuarioActual autorYRevisor = UsuarioActual.de(AUTOR, Rol.AUTOR, Rol.REVISOR);
+
+        assertThat(consultar(autorYRevisor, ConsultarPreguntasConsulta.sinFiltros()).contenido())
+                .extracting(PreguntaResumen::preguntaId)
+                .containsExactlyInAnyOrder(borrador, enRevision, publicada);
+    }
+
+    @Test
+    @DisplayName("Los filtros y la paginación se aplican sobre la unión")
+    void filtrosYPaginacionSobreLaUnion() {
+        UsuarioActual autorYDocente = UsuarioActual.de(REVISOR_3, Rol.AUTOR, Rol.DOCENTE);
+        ConsultarPreguntasConsulta delAutorPrincipal = new ConsultarPreguntasConsulta(null, null, null, null, null,
+                AUTOR.toString(), null, null);
+
+        assertThat(consultar(autorYDocente, delAutorPrincipal).contenido()).extracting(PreguntaResumen::preguntaId)
+                .containsExactly(publicada);
+        Pagina<PreguntaResumen> primera = consultar(autorYDocente,
+                new ConsultarPreguntasConsulta(null, null, null, null, null, null, 0, 1));
+        assertThat(primera.contenido()).hasSize(1);
+        assertThat(primera.totalElementos()).isEqualTo(2);
+        assertThat(primera.totalPaginas()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("ESTUDIANTE con otro rol válido no recibe 403")
+    void estudianteConOtroRol() {
+        UsuarioActual estudianteYDocente = UsuarioActual.de(ESTUDIANTE, Rol.ESTUDIANTE, Rol.DOCENTE);
+        assertThat(consultar(estudianteYDocente, ConsultarPreguntasConsulta.sinFiltros()).contenido())
+                .extracting(PreguntaResumen::preguntaId)
+                .containsExactly(publicada);
     }
 
     @Test

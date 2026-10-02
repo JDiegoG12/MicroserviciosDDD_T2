@@ -32,8 +32,7 @@ public final class PublicadorPreguntaServicio {
                 .map(ProcesoDeRevision::tieneDictamenAprobatorio)
                 .orElse(false);
         // CU-08: ninguna Pregunta se publica sin superar la Revisión por pares.
-        // DUDA: CONTRATOS 8.1 solo lista 409 TRANSICION_NO_PERMITIDA para la publicación; se usa ese código
-        // también cuando falta el Dictamen favorable.
+        // CONTRATOS.md 8.1: sin un proceso cerrado con dictamen APROBADA → 409 TRANSICION_NO_PERMITIDA.
         if (!dictamenFavorable) {
             throw new TransicionNoPermitidaExcepcion("La pregunta " + pregunta.getId()
                     + " no tiene un proceso de revisión con dictamen APROBADA y no puede pasar a PUBLICADA.");

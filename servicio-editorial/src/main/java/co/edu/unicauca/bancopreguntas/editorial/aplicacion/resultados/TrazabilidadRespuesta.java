@@ -30,8 +30,8 @@ public record TrazabilidadRespuesta(String preguntaId, List<RegistroRespuesta> r
     /**
      * Entrada del historial de revisiones.
      *
-     * <p>DUDA: CONTRATOS 8.1 no detalla la forma de {@code historialRevisiones}; cada entrada lleva su
-     * {@code tipo} ({@code EVALUACION} o {@code DICTAMEN}) y solo uno de los dos detalles.</p>
+     * <p>Forma exacta de CONTRATOS.md 8.1 ({@code historialRevisiones}): {@code evaluacion} es nulo si el tipo es
+     * {@code DICTAMEN} y {@code dictamen} es nulo si el tipo es {@code EVALUACION}.</p>
      *
      * @param tipo       {@code EVALUACION} o {@code DICTAMEN}
      * @param procesoId  UUID del Proceso de origen

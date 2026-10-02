@@ -178,8 +178,7 @@ public final class Pregunta extends RaizDeAgregado {
      * @throws TransicionNoPermitidaExcepcion si la Pregunta no está {@code EN_REVISION}
      */
     public void registrarEnHistorial(EntradaDeHistorial entrada) {
-        // DUDA: CONTRATOS no fija el código para anexar al historial fuera de EN_REVISION; se usa
-        // TRANSICION_NO_PERMITIDA porque es el estado actual el que impide la operación (409).
+        // CONTRATOS.md 11.1: registrarEnHistorial fuera de EN_REVISION → TRANSICION_NO_PERMITIDA (409).
         if (estado != EstadoPregunta.EN_REVISION) {
             throw new TransicionNoPermitidaExcepcion("Solo se anexan evaluaciones al historial de una pregunta "
                     + "EN_REVISION; esta está en " + estado + ".");
@@ -190,12 +189,15 @@ public final class Pregunta extends RaizDeAgregado {
     /**
      * Aprueba la Pregunta porque el Dictamen superó el 70 % (CU-12, INV-20).
      *
-     * @param usuarioId usuario cuya acción disparó el dictamen
+     * <p>CONTRATOS.md 11.1: el responsable es el revisor cuya evaluación disparó el dictamen y el detalle es
+     * {@link #detalleDeDictamenAutomatico(UsuarioId)}.</p>
+     *
+     * @param revisorId revisor cuya evaluación disparó el dictamen
      * @param fecha     instante del dictamen
      * @throws TransicionNoPermitidaExcepcion si no está {@code EN_REVISION}
      */
-    public void aprobar(UsuarioId usuarioId, Instant fecha) {
-        transitarA(EstadoPregunta.APROBADA, usuarioId, fecha, "Dictamen aprobatorio (CU-12).");
+    public void aprobar(UsuarioId revisorId, Instant fecha) {
+        transitarA(EstadoPregunta.APROBADA, revisorId, fecha, detalleDeDictamenAutomatico(revisorId));
         registrarEvento(new PreguntaAprobada(id, fecha));
     }
 
@@ -203,15 +205,28 @@ public final class Pregunta extends RaizDeAgregado {
      * Rechaza la Pregunta: pasa por {@code RECHAZADA}, que queda en la trazabilidad, y en el mismo paso
      * vuelve a {@code EN_CONSTRUCCION} conservando íntegro su historial (CU-12, D-07, INV-14).
      *
-     * @param usuarioId usuario cuya acción disparó el dictamen
+     * <p>CONTRATOS.md 11.1: las dos transiciones registran como responsable al revisor cuya evaluación disparó el
+     * dictamen, con el detalle {@link #detalleDeDictamenAutomatico(UsuarioId)}.</p>
+     *
+     * @param revisorId revisor cuya evaluación disparó el dictamen
      * @param fecha     instante del dictamen
      * @throws TransicionNoPermitidaExcepcion si no está {@code EN_REVISION}
      */
-    public void rechazar(UsuarioId usuarioId, Instant fecha) {
-        transitarA(EstadoPregunta.RECHAZADA, usuarioId, fecha, "Dictamen no aprobatorio (CU-12).");
-        transitarA(EstadoPregunta.EN_CONSTRUCCION, usuarioId, fecha,
-                "Retorno automático a construcción tras el rechazo (D-07).");
+    public void rechazar(UsuarioId revisorId, Instant fecha) {
+        String detalle = detalleDeDictamenAutomatico(revisorId);
+        transitarA(EstadoPregunta.RECHAZADA, revisorId, fecha, detalle);
+        transitarA(EstadoPregunta.EN_CONSTRUCCION, revisorId, fecha, detalle);
         registrarEvento(new PreguntaRechazada(id, fecha));
+    }
+
+    /**
+     * Texto exacto del detalle de las transiciones automáticas del dictamen (CONTRATOS.md 11.1).
+     *
+     * @param revisorId revisor cuya evaluación disparó el dictamen
+     * @return {@code "Dictamen automático (CU-12) disparado por la evaluación del revisor <revisorId>"}
+     */
+    public static String detalleDeDictamenAutomatico(UsuarioId revisorId) {
+        return "Dictamen automático (CU-12) disparado por la evaluación del revisor " + revisorId;
     }
 
     /**

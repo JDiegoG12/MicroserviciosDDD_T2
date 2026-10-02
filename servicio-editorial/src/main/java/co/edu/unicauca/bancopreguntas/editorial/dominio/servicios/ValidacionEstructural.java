@@ -1,5 +1,6 @@
 package co.edu.unicauca.bancopreguntas.editorial.dominio.servicios;
 
+import co.edu.unicauca.bancopreguntas.editorial.dominio.modelo.comun.LongitudDeTexto;
 import co.edu.unicauca.bancopreguntas.editorial.dominio.modelo.pregunta.ContenidoDePregunta;
 import co.edu.unicauca.bancopreguntas.editorial.dominio.modelo.pregunta.OpcionDeRespuesta;
 
@@ -198,13 +199,14 @@ public final class ValidacionEstructural {
         return sinTildes.toLowerCase(Locale.ROOT).replaceAll("\\s+", " ").strip();
     }
 
-    // DUDA: CONTRATOS 11.1 no dice cómo se cuentan los caracteres; se cuentan puntos de código Unicode.
+    // CONTRATOS.md 4 ("Longitud de textos"): puntos de código Unicode, sin los espacios del inicio y del final.
     private static int longitud(String texto) {
-        return texto.codePointCount(0, texto.length());
+        return LongitudDeTexto.medir(texto);
     }
 
+    // RF-13: el primer carácter se evalúa sobre el texto sin los espacios del inicio (CONTRATOS.md 4).
     private static boolean empiezaPorMayusculaODigito(String texto) {
-        int primero = texto.codePointAt(0);
+        int primero = texto.strip().codePointAt(0);
         return Character.isUpperCase(primero) || Character.isDigit(primero);
     }
 }

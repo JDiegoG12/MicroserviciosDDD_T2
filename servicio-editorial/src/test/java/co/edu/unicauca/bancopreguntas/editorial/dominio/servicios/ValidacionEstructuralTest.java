@@ -256,6 +256,35 @@ class ValidacionEstructuralTest {
         }
     }
 
+    @Nested
+    @DisplayName("Medición de longitudes (CONTRATOS.md 4)")
+    class MedicionDeLongitudes {
+
+        @Test
+        @DisplayName("Los espacios del inicio y del final no cuentan")
+        void espaciosExterioresNoCuentan() {
+            String contexto = "   " + "x".repeat(2000) + "   ";
+            assertThat(reglasIncumplidas(contenido().conContexto(contexto).construir())).isEmpty();
+        }
+
+        @Test
+        @DisplayName("Se cuentan puntos de código: un emoji vale un carácter")
+        void cuentaPuntosDeCodigo() {
+            // "😀" ocupa dos unidades UTF-16 pero es un solo punto de código.
+            String quinientosEmojis = "😀".repeat(500);
+            assertThat(reglasIncumplidas(contenido().conPreguntaDirecta(quinientosEmojis).construir())).isEmpty();
+            assertThat(reglasIncumplidas(contenido().conPreguntaDirecta(quinientosEmojis + "😀").construir()))
+                    .containsExactly("RF-09");
+        }
+
+        @Test
+        @DisplayName("La mayúscula inicial de RF-13 se evalúa sin los espacios del inicio")
+        void mayusculaSinEspaciosIniciales() {
+            assertThat(reglasIncumplidas(contenido().conOpciones(opciones("  3,0 ", "3,8", " 4,0", "4,5  ")).construir()))
+                    .isEmpty();
+        }
+    }
+
     @Test
     @DisplayName("Se informan todas las reglas incumplidas a la vez")
     void seInformanTodasLasReglas() {

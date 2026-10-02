@@ -1,6 +1,9 @@
 package co.edu.unicauca.bancopreguntas.editorial.dominio.repositorios;
 
+import co.edu.unicauca.bancopreguntas.editorial.dominio.modelo.comun.Pagina;
+import co.edu.unicauca.bancopreguntas.editorial.dominio.modelo.comun.Paginacion;
 import co.edu.unicauca.bancopreguntas.editorial.dominio.modelo.comun.UsuarioId;
+import co.edu.unicauca.bancopreguntas.editorial.dominio.modelo.revision.EstadoProceso;
 import co.edu.unicauca.bancopreguntas.editorial.dominio.modelo.pregunta.PreguntaId;
 import co.edu.unicauca.bancopreguntas.editorial.dominio.modelo.revision.ProcesoDeRevision;
 import co.edu.unicauca.bancopreguntas.editorial.dominio.modelo.revision.ProcesoDeRevisionId;
@@ -52,4 +55,15 @@ public interface ProcesoDeRevisionRepositorio {
      * @return Procesos abiertos donde está asignado
      */
     List<ProcesoDeRevision> buscarActivosPorRevisor(UsuarioId revisorId);
+
+    /**
+     * Consulta paginada de Procesos por estado y, opcionalmente, por Revisor asignado (CU-06; CONTRATOS.md 8.1,
+     * {@code GET /procesos-revision}). Orden estable: fecha de apertura y luego identificador.
+     *
+     * @param estado     estado de los Procesos
+     * @param revisorId  Revisor asignado, o {@code null} para todos los Procesos de ese estado
+     * @param paginacion página solicitada
+     * @return página de Procesos
+     */
+    Pagina<ProcesoDeRevision> buscarPorEstadoYRevisor(EstadoProceso estado, UsuarioId revisorId, Paginacion paginacion);
 }

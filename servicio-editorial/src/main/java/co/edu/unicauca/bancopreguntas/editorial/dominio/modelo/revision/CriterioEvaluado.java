@@ -24,7 +24,7 @@ public record CriterioEvaluado(TipoCriterio criterio, int valoracion) {
      */
     public CriterioEvaluado {
         Validaciones.requerirNoNulo(criterio, "criterios[].criterio");
-        // DUDA: CONTRATOS 8.1 no asigna código a una valoración fuera de rango; se usa SOLICITUD_INVALIDA (400).
+        // CONTRATOS.md 5.3: una valoración fuera de 1–5 es rango de un campo sin INV detrás → 400 SOLICITUD_INVALIDA.
         if (valoracion < VALORACION_MINIMA || valoracion > VALORACION_MAXIMA) {
             throw new DatoInvalidoExcepcion("La valoración del criterio " + criterio + " debe estar entre "
                     + VALORACION_MINIMA + " y " + VALORACION_MAXIMA + ".");

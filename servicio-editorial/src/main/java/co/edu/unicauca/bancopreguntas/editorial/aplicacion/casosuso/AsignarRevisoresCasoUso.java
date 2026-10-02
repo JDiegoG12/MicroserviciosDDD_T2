@@ -28,10 +28,16 @@ import java.util.List;
  * CU-10, Asignar revisores. Rol {@code ADMINISTRADOR}. Endpoint futuro:
  * {@code POST /preguntas/{preguntaId}/procesos-revision} (201).
  *
- * <p>DUDA: este caso de uso guarda dos agregados (el Proceso nuevo y la Pregunta), lo que choca con la regla
- * "un agregado por transacción" de CONTRATOS.md 3.3.5. Se hace así porque D-14 y el Taller 1 (10.2) definen
- * la apertura del Proceso y el paso a EN_REVISION como un solo hecho del negocio. En la etapa 2 ambos
- * guardados deben ir en la misma transacción.</p>
+ * <p><strong>Excepción documentada a la regla 3.3.5</strong> (CONTRATOS.md 3.3.5 y 11.1, "Excepción a 3.3.5"):
+ * este caso de uso guarda el {@code ProcesoDeRevision} nuevo y la {@code Pregunta} en <strong>una sola
+ * transacción local</strong>, con bloqueo optimista en ambos agregados. La transacción la abre la
+ * infraestructura, que envuelve el caso de uso completo. Justificación:</p>
+ * <ul>
+ *   <li>D-14 define la apertura del Proceso y el paso de la Pregunta a {@code EN_REVISION} como un solo hecho del
+ *       negocio, y el Taller 1 (10.2) asigna esa coordinación a {@code AsignadorRevisoresServicio};</li>
+ *   <li>los dos agregados viven en el mismo contexto y la misma base de datos, así que la consistencia eventual
+ *       con eventos internos agregaría complejidad sin beneficio.</li>
+ * </ul>
  */
 public final class AsignarRevisoresCasoUso implements AsignarRevisores {
 

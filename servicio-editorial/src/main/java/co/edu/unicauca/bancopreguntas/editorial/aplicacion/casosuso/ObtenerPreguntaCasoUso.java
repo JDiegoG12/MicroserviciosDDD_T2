@@ -21,8 +21,8 @@ import co.edu.unicauca.bancopreguntas.editorial.dominio.repositorios.ProcesoDeRe
  * {@code AUTOR} si es suya, {@code REVISOR} si está asignado a su Proceso vigente y {@code DOCENTE} si está
  * {@code PUBLICADA}.</p>
  *
- * <p>DUDA: CONTRATOS 8.1 solo lista 404 para este endpoint. Para una Pregunta existente que el rol no
- * puede ver se responde ACCESO_DENEGADO (403) en lugar de ocultar su existencia con un 404.</p>
+ * <p>CONTRATOS.md 8.1: si la Pregunta existe pero ningún rol del usuario permite verla → 403
+ * {@code ACCESO_DENEGADO}.</p>
  */
 public final class ObtenerPreguntaCasoUso implements ObtenerPregunta {
 

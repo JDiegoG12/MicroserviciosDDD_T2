@@ -5,8 +5,7 @@ import java.time.Instant;
 /**
  * Elemento de la página de {@code GET /preguntas} (CU-06; CONTRATOS.md 8.1, "página de {@code PreguntaResumen}").
  *
- * <p>DUDA: CONTRATOS.md nombra {@code PreguntaResumen} pero no define sus campos; se eligen los mínimos
- * para listar y filtrar, sin las opciones ni la justificación.</p>
+ * <p>Campos exactos de CONTRATOS.md 8.1 ("{@code PreguntaResumen}").</p>
  *
  * @param preguntaId         UUID de la Pregunta
  * @param autorId            UUID del Autor

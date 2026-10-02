@@ -48,7 +48,7 @@ public final class FormatoDeEvaluacion {
     }
 
     // CU-11 y CONTRATOS 8.1: PEDAGOGICO, TECNICO y ESTRUCTURAL son obligatorios, una vez cada uno.
-    // DUDA: CONTRATOS 8.1 no asigna código a criterios faltantes o repetidos; se usa SOLICITUD_INVALIDA (400).
+    // CONTRATOS.md 5.3: un criterio faltante o repetido es formato de un campo sin INV detrás → 400 SOLICITUD_INVALIDA.
     private static void exigirLosTresCriterios(List<CriterioEvaluado> criterios) {
         Set<TipoCriterio> presentes = EnumSet.noneOf(TipoCriterio.class);
         criterios.forEach(criterio -> presentes.add(criterio.criterio()));

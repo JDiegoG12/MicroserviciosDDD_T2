@@ -26,8 +26,7 @@ public record Paginacion(int pagina, int tamano) {
         if (pagina < 0) {
             throw new DatoInvalidoExcepcion("La página debe ser mayor o igual a 0.");
         }
-        // DUDA: CONTRATOS 5.1 fija el máximo en 100 pero no dice si un tamaño mayor se recorta o se
-        // rechaza; se toma la opción conservadora de rechazarlo con SOLICITUD_INVALIDA.
+        // CONTRATOS.md 5.1: un tamano fuera de 1–100 o una pagina negativa → 400; no se recorta en silencio.
         if (tamano < 1 || tamano > TAMANO_MAXIMO) {
             throw new DatoInvalidoExcepcion("El tamaño de página debe estar entre 1 y " + TAMANO_MAXIMO + ".");
         }

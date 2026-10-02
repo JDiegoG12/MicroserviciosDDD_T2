@@ -1,13 +1,11 @@
 package co.edu.unicauca.bancopreguntas.editorial.aplicacion.excepciones;
 
 /**
- * El Proceso de revisión solicitado no existe (HTTP 404, CONTRATOS.md 8.1).
+ * El Proceso de revisión solicitado no existe. Código {@code PROCESO_REVISION_NO_ENCONTRADO} (CONTRATOS.md 5.3, HTTP 404).
  */
 public class ProcesoRevisionNoEncontradoExcepcion extends ExcepcionDeAplicacion {
 
-    // DUDA: CONTRATOS 8.1 indica 404 para los procesos pero no nombra el código; se sigue el patrón
-    // de PREGUNTA_NO_ENCONTRADA con PROCESO_REVISION_NO_ENCONTRADO.
-    /** Código propuesto para el 404 de procesos. */
+    /** Código exacto de CONTRATOS.md 5.3 (fila 404). */
     public static final String CODIGO = "PROCESO_REVISION_NO_ENCONTRADO";
 
     /**

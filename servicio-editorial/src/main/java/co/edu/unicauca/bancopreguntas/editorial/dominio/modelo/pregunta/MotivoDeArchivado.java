@@ -1,6 +1,7 @@
 package co.edu.unicauca.bancopreguntas.editorial.dominio.modelo.pregunta;
 
 import co.edu.unicauca.bancopreguntas.editorial.dominio.excepciones.DatoInvalidoExcepcion;
+import co.edu.unicauca.bancopreguntas.editorial.dominio.modelo.comun.LongitudDeTexto;
 import co.edu.unicauca.bancopreguntas.editorial.dominio.modelo.comun.Validaciones;
 
 /**
@@ -20,7 +21,8 @@ public record MotivoDeArchivado(String texto) {
      */
     public MotivoDeArchivado {
         Validaciones.requerirNoNulo(texto, "motivo");
-        if (texto.isBlank() || texto.length() > LONGITUD_MAXIMA) {
+        // CONTRATOS.md 4: la longitud se mide en puntos de código, sin los espacios del inicio y del final.
+        if (texto.isBlank() || LongitudDeTexto.medir(texto) > LONGITUD_MAXIMA) {
             throw new DatoInvalidoExcepcion("CU-09: el motivo del archivado debe tener entre 1 y "
                     + LONGITUD_MAXIMA + " caracteres.");
         }

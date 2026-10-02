@@ -11,43 +11,35 @@ import co.edu.unicauca.bancopreguntas.editorial.dominio.modelo.comun.Pagina;
 import co.edu.unicauca.bancopreguntas.editorial.dominio.modelo.comun.Paginacion;
 import co.edu.unicauca.bancopreguntas.editorial.dominio.modelo.comun.UsuarioId;
 import co.edu.unicauca.bancopreguntas.editorial.dominio.modelo.comun.Validaciones;
+import co.edu.unicauca.bancopreguntas.editorial.dominio.modelo.pregunta.AlcanceDeVisibilidad;
 import co.edu.unicauca.bancopreguntas.editorial.dominio.modelo.pregunta.CriteriosBusquedaPregunta;
 import co.edu.unicauca.bancopreguntas.editorial.dominio.modelo.pregunta.EstadoPregunta;
 import co.edu.unicauca.bancopreguntas.editorial.dominio.modelo.pregunta.NivelDeDificultad;
-import co.edu.unicauca.bancopreguntas.editorial.dominio.modelo.pregunta.Pregunta;
-import co.edu.unicauca.bancopreguntas.editorial.dominio.modelo.pregunta.PreguntaId;
-import co.edu.unicauca.bancopreguntas.editorial.dominio.modelo.revision.ProcesoDeRevision;
 import co.edu.unicauca.bancopreguntas.editorial.dominio.repositorios.PreguntaRepositorio;
-import co.edu.unicauca.bancopreguntas.editorial.dominio.repositorios.ProcesoDeRevisionRepositorio;
 
-import java.util.Comparator;
-import java.util.List;
 import java.util.UUID;
 
 /**
- * CU-06, Consultar preguntas mediante filtros. Endpoint futuro: {@code GET /preguntas} (200, página).
+ * CU-06, Consultar preguntas mediante filtros. Endpoint: {@code GET /preguntas} (200, página de
+ * {@code PreguntaResumen}).
  *
- * <p>Restricción por rol (CU-06, RNF-07): {@code ADMINISTRADOR} ve todas, {@code AUTOR} solo las suyas,
- * {@code REVISOR} las de sus Procesos abiertos y {@code DOCENTE} solo las {@code PUBLICADA}.</p>
- *
- * <p>DUDA: CONTRATOS.md no dice qué ocurre si un usuario tiene varios de esos roles. Se aplica el rol más
- * amplio en este orden: ADMINISTRADOR, AUTOR, REVISOR, DOCENTE. Un usuario sin ninguno de ellos (por ejemplo,
- * solo ESTUDIANTE) recibe ACCESO_DENEGADO.</p>
+ * <p>Restricción por rol (CU-06, RNF-07; CONTRATOS.md 8.1): {@code ADMINISTRADOR} ve todas; si no, se ve la
+ * <strong>unión</strong> de lo que permite cada rol del usuario (D-08): {@code AUTOR} sus preguntas,
+ * {@code REVISOR} las de sus Procesos abiertos y {@code DOCENTE} las {@code PUBLICADA}. Los filtros y la
+ * paginación se aplican sobre esa unión en la base de datos. Un usuario que solo tiene {@code ESTUDIANTE}
+ * recibe 403 {@code ACCESO_DENEGADO}.</p>
  */
 public final class ConsultarPreguntasCasoUso implements ConsultarPreguntas {
 
     private final PreguntaRepositorio preguntaRepositorio;
-    private final ProcesoDeRevisionRepositorio procesoRepositorio;
 
     /**
-     * Crea el caso de uso con sus repositorios.
+     * Crea el caso de uso.
      *
      * @param preguntaRepositorio repositorio de Preguntas
-     * @param procesoRepositorio  repositorio de Procesos de revisión
      */
-    public ConsultarPreguntasCasoUso(PreguntaRepositorio preguntaRepositorio, ProcesoDeRevisionRepositorio procesoRepositorio) {
+    public ConsultarPreguntasCasoUso(PreguntaRepositorio preguntaRepositorio) {
         this.preguntaRepositorio = preguntaRepositorio;
-        this.procesoRepositorio = procesoRepositorio;
     }
 
     /**
@@ -62,46 +54,26 @@ public final class ConsultarPreguntasCasoUso implements ConsultarPreguntas {
         CriteriosBusquedaPregunta criterios = aCriterios(consulta);
         Paginacion paginacion = Paginacion.de(consulta.pagina(), consulta.tamano());
 
-        Pagina<Pregunta> pagina;
+        return preguntaRepositorio.buscarPorCriterios(criterios, alcanceDe(usuario), paginacion)
+                .mapear(MapeadorDeResultados::aPreguntaResumen);
+    }
+
+    // CONTRATOS.md 8.1 y D-08: ADMINISTRADOR ve todas; si no, la unión de lo que permite cada rol.
+    private static AlcanceDeVisibilidad alcanceDe(UsuarioActual usuario) {
         if (usuario.tieneRol(Rol.ADMINISTRADOR)) {
-            pagina = preguntaRepositorio.buscarPorCriterios(criterios, paginacion);
-        } else if (usuario.tieneRol(Rol.AUTOR)) {
-            pagina = consultarComoAutor(usuario.id(), criterios, paginacion);
-        } else if (usuario.tieneRol(Rol.REVISOR)) {
-            pagina = consultarComoRevisor(usuario.id(), criterios, paginacion);
-        } else {
-            pagina = consultarComoDocente(criterios, paginacion);
+            return AlcanceDeVisibilidad.todas();
         }
-        return pagina.mapear(MapeadorDeResultados::aPreguntaResumen);
-    }
-
-    // CU-06: un Autor consulta solo sus propias Preguntas.
-    private Pagina<Pregunta> consultarComoAutor(UsuarioId autor, CriteriosBusquedaPregunta criterios, Paginacion paginacion) {
-        if (criterios.autorId() != null && !criterios.autorId().equals(autor)) {
-            return Pagina.desdeLista(List.of(), paginacion);
+        AlcanceDeVisibilidad alcance = AlcanceDeVisibilidad.ninguna();
+        if (usuario.tieneRol(Rol.AUTOR)) {
+            alcance = alcance.conPropiasDe(usuario.id());
         }
-        return preguntaRepositorio.buscarPorCriterios(criterios.conAutor(autor), paginacion);
-    }
-
-    // CU-06: un Docente consulta solo las Preguntas PUBLICADA.
-    private Pagina<Pregunta> consultarComoDocente(CriteriosBusquedaPregunta criterios, Paginacion paginacion) {
-        if (criterios.estado() != null && criterios.estado() != EstadoPregunta.PUBLICADA) {
-            return Pagina.desdeLista(List.of(), paginacion);
+        if (usuario.tieneRol(Rol.REVISOR)) {
+            alcance = alcance.conAsignadasA(usuario.id());
         }
-        return preguntaRepositorio.buscarPorCriterios(criterios.conEstado(EstadoPregunta.PUBLICADA), paginacion);
-    }
-
-    // CU-06 y Taller 1, 12.1: un Revisor consulta las Preguntas de sus Procesos activos (dos repositorios).
-    private Pagina<Pregunta> consultarComoRevisor(UsuarioId revisor, CriteriosBusquedaPregunta criterios, Paginacion paginacion) {
-        List<PreguntaId> asignadas = procesoRepositorio.buscarActivosPorRevisor(revisor).stream()
-                .map(ProcesoDeRevision::getPreguntaId)
-                .distinct()
-                .toList();
-        List<Pregunta> filtradas = preguntaRepositorio.buscarPorIds(asignadas).stream()
-                .filter(criterios::seCumplenEn)
-                .sorted(Comparator.comparing(Pregunta::getFechaCreacion))
-                .toList();
-        return Pagina.desdeLista(filtradas, paginacion);
+        if (usuario.tieneRol(Rol.DOCENTE)) {
+            alcance = alcance.conPublicadas();
+        }
+        return alcance;
     }
 
     private static CriteriosBusquedaPregunta aCriterios(ConsultarPreguntasConsulta consulta) {

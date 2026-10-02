@@ -54,10 +54,10 @@ public final class Escenario {
     /** Estudiante de prueba. */
     public static final UsuarioActual COMO_ESTUDIANTE = UsuarioActual.de(ESTUDIANTE, Rol.ESTUDIANTE);
 
-    /** Repositorio de Preguntas en memoria. */
-    public final PreguntaRepositorioEnMemoria preguntas = new PreguntaRepositorioEnMemoria();
     /** Repositorio de Procesos en memoria. */
     public final ProcesoDeRevisionRepositorioEnMemoria procesos = new ProcesoDeRevisionRepositorioEnMemoria();
+    /** Repositorio de Preguntas en memoria. */
+    public final PreguntaRepositorioEnMemoria preguntas = new PreguntaRepositorioEnMemoria(procesos);
     /** Catálogo falso. */
     public final CatalogoAcademicoFalso catalogo = new CatalogoAcademicoFalso();
     /** Publicador de eventos en memoria. */
@@ -70,7 +70,7 @@ public final class Escenario {
     /** CU-05. */
     public final ModificarPreguntaCasoUso modificarPregunta = new ModificarPreguntaCasoUso(preguntas, catalogo, publicador, reloj);
     /** CU-06. */
-    public final ConsultarPreguntasCasoUso consultarPreguntas = new ConsultarPreguntasCasoUso(preguntas, procesos);
+    public final ConsultarPreguntasCasoUso consultarPreguntas = new ConsultarPreguntasCasoUso(preguntas);
     /** CU-06 (una). */
     public final ObtenerPreguntaCasoUso obtenerPregunta = new ObtenerPreguntaCasoUso(preguntas, procesos);
     /** CU-07. */

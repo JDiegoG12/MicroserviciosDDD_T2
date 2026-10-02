@@ -33,8 +33,16 @@ import java.util.List;
  * evaluación pendiente, el Proceso emite su Dictamen y la Pregunta pasa a {@code APROBADA} o vuelve a
  * {@code EN_CONSTRUCCION} (INV-19, INV-20, D-07).</p>
  *
- * <p>DUDA: igual que la asignación, guarda dos agregados en un mismo caso de uso (CONTRATOS.md 3.3.5 frente a
- * D-15 y Taller 1, 10.3). En la etapa 2 ambos guardados deben ir en la misma transacción.</p>
+ * <p><strong>Excepción documentada a la regla 3.3.5</strong> (CONTRATOS.md 3.3.5 y 11.1, "Excepción a 3.3.5"):
+ * guarda el {@code ProcesoDeRevision} y la {@code Pregunta} en <strong>una sola transacción local</strong>, con
+ * bloqueo optimista en ambos agregados. La transacción la abre la infraestructura, que envuelve el caso de uso
+ * completo. Justificación:</p>
+ * <ul>
+ *   <li>D-15 exige que el Historial de revisiones viva en la Pregunta, y el Taller 1 (10.3) asigna a
+ *       {@code ResolutorDictamenServicio} el traslado de cada evaluación y la ejecución del dictamen;</li>
+ *   <li>los dos agregados viven en el mismo contexto y la misma base de datos, así que la consistencia eventual
+ *       con eventos internos agregaría complejidad sin beneficio.</li>
+ * </ul>
  */
 public final class RegistrarEvaluacionCasoUso implements RegistrarEvaluacion {
 

@@ -245,6 +245,27 @@ class PreguntaTest {
             pregunta.modificar(AUTOR, contenidoValido(), fecha(6));
             assertThat(pregunta.getEstado()).isEqualTo(EstadoPregunta.EN_CONSTRUCCION);
         }
+
+        @Test
+        @DisplayName("El dictamen automático registra al revisor que lo disparó con el detalle exacto de 11.1")
+        void detalleDelDictamenAutomatico() {
+            String detalleEsperado = "Dictamen automático (CU-12) disparado por la evaluación del revisor " + REVISOR_2;
+            Pregunta rechazada = preguntaEnRevision();
+            Pregunta aprobada = preguntaEnRevision();
+
+            rechazada.rechazar(REVISOR_2, fecha(5));
+            aprobada.aprobar(REVISOR_2, fecha(5));
+
+            List<RegistroDeTrazabilidad> deRechazo = rechazada.getTrazabilidad();
+            assertThat(deRechazo.subList(deRechazo.size() - 2, deRechazo.size())).allSatisfy(registro -> {
+                assertThat(registro.usuarioId()).isEqualTo(REVISOR_2);
+                assertThat(registro.detalle()).isEqualTo(detalleEsperado);
+            });
+            assertThat(aprobada.getTrazabilidad()).last().satisfies(registro -> {
+                assertThat(registro.usuarioId()).isEqualTo(REVISOR_2);
+                assertThat(registro.detalle()).isEqualTo(detalleEsperado);
+            });
+        }
     }
 
     @Nested
@@ -368,6 +389,7 @@ class PreguntaTest {
         @DisplayName("El motivo de archivado es obligatorio y tiene de 1 a 500 caracteres")
         void motivoDeArchivado() {
             assertThat(new MotivoDeArchivado("x".repeat(500)).texto()).hasSize(500);
+            assertThat(new MotivoDeArchivado("  " + "x".repeat(500) + "  ").texto()).isNotBlank();
             lanzaConCodigo(() -> new MotivoDeArchivado("x".repeat(501)), "SOLICITUD_INVALIDA");
             lanzaConCodigo(() -> new MotivoDeArchivado("   "), "SOLICITUD_INVALIDA");
             lanzaConCodigo(() -> new MotivoDeArchivado(null), "SOLICITUD_INVALIDA");

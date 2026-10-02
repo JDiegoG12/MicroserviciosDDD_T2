@@ -7,6 +7,10 @@ import co.edu.unicauca.bancopreguntas.editorial.dominio.modelo.revision.ProcesoD
 import co.edu.unicauca.bancopreguntas.editorial.dominio.modelo.revision.ProcesoDeRevisionId;
 import co.edu.unicauca.bancopreguntas.editorial.dominio.repositorios.ProcesoDeRevisionRepositorio;
 
+import co.edu.unicauca.bancopreguntas.editorial.dominio.modelo.comun.Pagina;
+import co.edu.unicauca.bancopreguntas.editorial.dominio.modelo.comun.Paginacion;
+
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -49,6 +53,17 @@ public final class ProcesoDeRevisionRepositorioEnMemoria implements ProcesoDeRev
                 .filter(proceso -> proceso.getEstado() == EstadoProceso.ABIERTO)
                 .filter(proceso -> proceso.tieneAsignado(revisorId))
                 .toList();
+    }
+
+    @Override
+    public Pagina<ProcesoDeRevision> buscarPorEstadoYRevisor(EstadoProceso estado, UsuarioId revisorId,
+                                                            Paginacion paginacion) {
+        List<ProcesoDeRevision> filtrados = procesos.values().stream()
+                .filter(proceso -> proceso.getEstado() == estado)
+                .filter(proceso -> revisorId == null || proceso.tieneAsignado(revisorId))
+                .sorted(Comparator.comparing(ProcesoDeRevision::getFechaApertura))
+                .toList();
+        return Pagina.desdeLista(filtrados, paginacion);
     }
 
     /**

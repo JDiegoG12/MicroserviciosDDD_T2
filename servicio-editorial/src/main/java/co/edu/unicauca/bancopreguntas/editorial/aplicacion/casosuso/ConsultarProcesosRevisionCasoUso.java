@@ -8,24 +8,23 @@ import co.edu.unicauca.bancopreguntas.editorial.aplicacion.resultados.ProcesoRev
 import co.edu.unicauca.bancopreguntas.editorial.aplicacion.seguridad.Rol;
 import co.edu.unicauca.bancopreguntas.editorial.aplicacion.seguridad.UsuarioActual;
 import co.edu.unicauca.bancopreguntas.editorial.dominio.excepciones.AccesoDenegadoExcepcion;
-import co.edu.unicauca.bancopreguntas.editorial.dominio.excepciones.DatoInvalidoExcepcion;
 import co.edu.unicauca.bancopreguntas.editorial.dominio.modelo.comun.Pagina;
 import co.edu.unicauca.bancopreguntas.editorial.dominio.modelo.comun.Paginacion;
 import co.edu.unicauca.bancopreguntas.editorial.dominio.modelo.comun.UsuarioId;
 import co.edu.unicauca.bancopreguntas.editorial.dominio.modelo.revision.EstadoProceso;
-import co.edu.unicauca.bancopreguntas.editorial.dominio.modelo.revision.ProcesoDeRevision;
 import co.edu.unicauca.bancopreguntas.editorial.dominio.repositorios.ProcesoDeRevisionRepositorio;
 
-import java.util.Comparator;
-import java.util.List;
-
 /**
- * CU-06 para Revisores: Procesos abiertos de un Revisor. Roles {@code REVISOR} o {@code ADMINISTRADOR}.
- * Endpoint futuro: {@code GET /procesos-revision?revisorId={uuid}&estado=ABIERTO} (200, página).
+ * CU-06 para Revisores: Procesos de revisión por estado y revisor. Roles {@code REVISOR} o {@code ADMINISTRADOR}.
+ * Endpoint: {@code GET /procesos-revision?revisorId={uuid}&estado={ABIERTO|CERRADO}} (200, página).
  *
- * <p>DUDA: el repositorio del Taller 1 (12.2) solo ofrece {@code buscarActivosPorRevisor}, así que:
- * (1) {@code estado} admite solo {@code ABIERTO} (o ausente); (2) un REVISOR que no es ADMINISTRADOR solo
- * consulta sus propios procesos; (3) {@code revisorId} es obligatorio para el ADMINISTRADOR.</p>
+ * <p>Filtros de CONTRATOS.md 8.1:</p>
+ * <ul>
+ *   <li>{@code estado} es opcional: {@code ABIERTO} por defecto o {@code CERRADO}; otro valor → 400;</li>
+ *   <li>un {@code REVISOR} sin rol {@code ADMINISTRADOR} solo ve sus procesos: si omite {@code revisorId} se usa
+ *       el suyo, y si pide el de otro → 403;</li>
+ *   <li>el {@code ADMINISTRADOR} puede omitir {@code revisorId} para ver todos los procesos de ese estado.</li>
+ * </ul>
  */
 public final class ConsultarProcesosRevisionCasoUso implements ConsultarProcesosRevision {
 
@@ -44,36 +43,33 @@ public final class ConsultarProcesosRevisionCasoUso implements ConsultarProcesos
      * {@inheritDoc}
      *
      * @throws AccesoDenegadoExcepcion sin rol válido, o si un Revisor consulta los procesos de otro
-     * @throws DatoInvalidoExcepcion   si el estado no es {@code ABIERTO}, falta el revisor o la paginación es inválida
+     * @throws co.edu.unicauca.bancopreguntas.editorial.dominio.excepciones.DatoInvalidoExcepcion si el estado, el
+     *         revisor o la paginación no son válidos
      */
     @Override
     public Pagina<ProcesoRevisionRespuesta> ejecutar(UsuarioActual usuario, ConsultarProcesosConsulta consulta) {
         usuario.exigirAlgunRol(Rol.REVISOR, Rol.ADMINISTRADOR);
-        exigirEstadoAbierto(consulta.estado());
+        EstadoProceso estado = estadoSolicitado(consulta.estado());
         UsuarioId revisor = determinarRevisor(usuario, consulta.revisorId());
         Paginacion paginacion = Paginacion.de(consulta.pagina(), consulta.tamano());
 
-        List<ProcesoDeRevision> procesos = procesoRepositorio.buscarActivosPorRevisor(revisor).stream()
-                .sorted(Comparator.comparing(ProcesoDeRevision::getFechaApertura))
-                .toList();
-        return Pagina.desdeLista(procesos, paginacion).mapear(MapeadorDeResultados::aProcesoRevisionRespuesta);
+        return procesoRepositorio.buscarPorEstadoYRevisor(estado, revisor, paginacion)
+                .mapear(MapeadorDeResultados::aProcesoRevisionRespuesta);
     }
 
-    private static void exigirEstadoAbierto(String estado) {
+    // CONTRATOS.md 8.1: ABIERTO por defecto, o CERRADO; otro valor → 400 SOLICITUD_INVALIDA.
+    private static EstadoProceso estadoSolicitado(String estado) {
         EstadoProceso solicitado = ConversorDeComandos.aEnumOpcional(EstadoProceso.class, estado, "estado");
-        if (solicitado != null && solicitado != EstadoProceso.ABIERTO) {
-            throw new DatoInvalidoExcepcion("Solo se pueden consultar procesos en estado ABIERTO.");
-        }
+        return solicitado == null ? EstadoProceso.ABIERTO : solicitado;
     }
 
+    // CONTRATOS.md 8.1: el ADMINISTRADOR puede omitir revisorId; el REVISOR solo consulta los suyos.
     private static UsuarioId determinarRevisor(UsuarioActual usuario, String revisorIdSolicitado) {
+        UsuarioId solicitado = revisorIdSolicitado == null ? null : UsuarioId.de(revisorIdSolicitado);
         if (usuario.tieneRol(Rol.ADMINISTRADOR)) {
-            if (revisorIdSolicitado == null) {
-                throw new DatoInvalidoExcepcion("El parámetro revisorId es obligatorio.");
-            }
-            return UsuarioId.de(revisorIdSolicitado);
+            return solicitado;
         }
-        if (revisorIdSolicitado != null && !UsuarioId.de(revisorIdSolicitado).equals(usuario.id())) {
+        if (solicitado != null && !solicitado.equals(usuario.id())) {
             throw new AccesoDenegadoExcepcion("Un revisor solo puede consultar sus propios procesos.");
         }
         return usuario.id();

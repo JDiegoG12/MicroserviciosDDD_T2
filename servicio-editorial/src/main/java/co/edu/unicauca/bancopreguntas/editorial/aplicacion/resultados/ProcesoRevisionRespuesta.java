@@ -31,8 +31,7 @@ public record ProcesoRevisionRespuesta(String procesoId, String preguntaId, Stri
     /**
      * Formato de evaluación.
      *
-     * <p>DUDA: CONTRATOS 8.1 no detalla los campos de {@code evaluaciones}; se usan los de la solicitud de
-     * registro más el revisor y la fecha.</p>
+     * <p>Forma exacta de CONTRATOS.md 8.1 ({@code evaluaciones}).</p>
      *
      * @param revisorId     UUID del Revisor
      * @param criterios     valoraciones

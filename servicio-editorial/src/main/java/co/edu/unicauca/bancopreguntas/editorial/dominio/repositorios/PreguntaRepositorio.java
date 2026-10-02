@@ -2,6 +2,7 @@ package co.edu.unicauca.bancopreguntas.editorial.dominio.repositorios;
 
 import co.edu.unicauca.bancopreguntas.editorial.dominio.modelo.comun.Pagina;
 import co.edu.unicauca.bancopreguntas.editorial.dominio.modelo.comun.Paginacion;
+import co.edu.unicauca.bancopreguntas.editorial.dominio.modelo.pregunta.AlcanceDeVisibilidad;
 import co.edu.unicauca.bancopreguntas.editorial.dominio.modelo.pregunta.CriteriosBusquedaPregunta;
 import co.edu.unicauca.bancopreguntas.editorial.dominio.modelo.pregunta.Pregunta;
 import co.edu.unicauca.bancopreguntas.editorial.dominio.modelo.pregunta.PreguntaId;
@@ -34,13 +35,17 @@ public interface PreguntaRepositorio {
     Optional<Pregunta> obtenerPorId(PreguntaId preguntaId);
 
     /**
-     * Consulta paginada con los filtros de CU-06 (CONTRATOS.md 8.1, {@code GET /preguntas}).
+     * Consulta paginada de CU-06 (CONTRATOS.md 8.1, {@code GET /preguntas}): primero la unión de visibilidad por
+     * rol, luego los filtros sobre esa unión y por último la paginación del resultado combinado. Todo se resuelve
+     * en la base de datos, no en memoria. Orden estable: fecha de creación y luego identificador.
      *
      * @param criterios  filtros; los nulos no restringen
+     * @param alcance    Preguntas visibles para el usuario (unión de sus roles)
      * @param paginacion página solicitada
-     * @return página de Preguntas que cumplen los filtros
+     * @return página de Preguntas visibles que cumplen los filtros
      */
-    Pagina<Pregunta> buscarPorCriterios(CriteriosBusquedaPregunta criterios, Paginacion paginacion);
+    Pagina<Pregunta> buscarPorCriterios(CriteriosBusquedaPregunta criterios, AlcanceDeVisibilidad alcance,
+                                        Paginacion paginacion);
 
     /**
      * Recupera varias Preguntas por identidad; sirve a CU-06 cuando el actor es un Revisor (Taller 1, 12.1).
