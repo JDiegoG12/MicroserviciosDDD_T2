@@ -1,0 +1,81 @@
+# =============================================================================
+# servicio-editorial · configuración
+# Solo se usan las variables de entorno de CONTRATOS.md 9.2 (nombres exactos). Los valores por defecto son los
+# "locales" de esa tabla, para ejecutar desde el IDE con el resto de la infraestructura en Docker.
+# =============================================================================
+
+server:
+  port: ${EDITORIAL_PUERTO_HTTP:8081}
+
+spring:
+  application:
+    name: servicio-editorial
+  main:
+    # Sin banner: todas las líneas del log llevan idCorrelacion (CONTRATOS.md 4.1).
+    banner-mode: off
+
+  datasource:
+    url: ${EDITORIAL_BD_URL:jdbc:postgresql://localhost:5433/editorial}
+    username: ${EDITORIAL_BD_USUARIO:editorial}
+    password: ${EDITORIAL_BD_CLAVE:editorial}
+    hikari:
+      # CONTRATOS 9.3.6: el pool no falla si PostgreSQL no responde al iniciar (se conecta cuando haga falta).
+      initialization-fail-timeout: -1
+      # Si la base de datos no responde, las peticiones fallan rápido con 503.
+      connection-timeout: 5000
+
+  # CONTRATOS 9.3.6 (v1.10): el servicio NO depende de PostgreSQL para arrancar.
+  #  - Hibernate no toca el esquema (ddl-auto=none) ni abre una conexión al iniciar para leer metadatos: el dialecto
+  #    va fijo y hibernate.boot.allow_jdbc_metadata_access=false (Hibernate 7, JdbcSettings.ALLOW_METADATA_ON_BOOT).
+  #  - Flyway no corre al arrancar: lo ejecuta MigradorEsquemaEnSegundoPlano con reintentos (máximo 30 s entre intentos).
+  #  - Mientras el esquema no está listo, /api/v1/** responde 503 BASE_DE_DATOS_NO_DISPONIBLE; /salud sigue en 200.
+  #  - La validación del esquema frente a las entidades se hace en las pruebas (perfil "pruebas", PersistenciaIT).
+  jpa:
+    open-in-view: false
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        boot:
+          allow_jdbc_metadata_access: false
+        jdbc:
+          time_zone: UTC
+        default_batch_fetch_size: 50
+
+  flyway:
+    enabled: false
+
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PUERTO:5672}
+    username: ${RABBITMQ_USUARIO:banco}
+    password: ${RABBITMQ_CLAVE:banco123}
+    virtual-host: /
+    # Publisher confirms (CONTRATOS.md 7.7.2).
+    publisher-confirm-type: correlated
+
+editorial:
+  migraciones:
+    # Espera progresiva de MigradorEsquemaEnSegundoPlano: se duplica en cada intento hasta el tope (CONTRATOS 9.3.6).
+    espera-inicial: 1s
+    espera-maxima: 30s
+  catalogo:
+    grpc:
+      host: ${CATALOGO_GRPC_HOST:localhost}
+      puerto: ${CATALOGO_GRPC_PUERTO:50051}
+      # Deadline del cliente (CONTRATOS.md 6).
+      plazo-maximo: 2s
+
+# Swagger UI en /docs y OpenAPI JSON en /openapi.json (CONTRATOS.md 5.1).
+springdoc:
+  api-docs:
+    path: /openapi.json
+  swagger-ui:
+    path: /docs
+
+# Todas las líneas de log llevan el idCorrelacion de la petición (CONTRATOS.md 4.1). Cada evento sale en UNA sola
+# línea: los saltos de línea del mensaje y de las trazas se reemplazan por " | ", así ninguna línea queda sin él.
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSX,UTC} %5p [%t] %logger{36} idCorrelacion=%X{idCorrelacion:-sin-peticion} - %replace(%m%wEx){'[\\r\\n]+\\s*', ' | '}%n"

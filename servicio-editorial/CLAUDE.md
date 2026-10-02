@@ -3,19 +3,20 @@
 ## Qué es este servicio
 - **Contexto (Taller 1):** Gestión Editorial de Preguntas.
 - **Dueño:** P1.
-- **Tecnología:** Java 21 · Spring Boot 3 · Maven · PostgreSQL 16 (`bd-editorial`).
+- **Tecnología:** Java 21 · Spring Boot 4.1.1 (Spring Framework 7, Jackson 3) · Maven · PostgreSQL 16 (`bd-editorial`).
 - **Puerto:** REST `8081` (`http://localhost:8081/api/v1`). Swagger en `/docs`, salud en `/salud`.
 - **Produce:** REST de la sección 8.1 y los eventos `PreguntaPublicada` y `PreguntaArchivada` (7.4, 7.5).
 - **Consume:** gRPC `CatalogoAcademico.ValidarClasificacion` (sección 6), como cliente.
 
 ## Antes de escribir código
-**Antes de escribir código lee /CONTRATOS.md: secciones 1 a 10 y la sección 11.1 de este servicio.**
-Ese documento es la fuente única de verdad: si algo de este archivo choca con él, manda CONTRATOS.md.
+**Antes de escribir código lee /CONTRATOS.md: secciones 0 a 10, la 12 y la 11.1 de este servicio.**
+Lee también **/MODELO-DOMINIO.md**: la Parte A completa y, de la Parte B, lo que su tabla indica para `servicio-editorial` (INV-01 a INV-21, D-01 a D-07, D-10, D-13 a D-15, CU-04 a CU-12 y CU-18).
+CONTRATOS.md es la fuente única de verdad: si algo de este archivo choca con él, manda CONTRATOS.md.
 
 ## Reglas
 1. **No leas ni modifiques otros servicios** (`servicio-catalogo`, `servicio-evaluacion`). Todo lo que necesitas de ellos está en CONTRATOS.md y en `/contratos`.
 2. **No modifiques `/contratos` ni `CONTRATOS.md`.** Si un contrato no alcanza, detente y repórtalo al equipo (se cambia por PR aprobado por al menos otro integrante).
-3. **Clean Architecture (§3.3):** las dependencias apuntan hacia `dominio`; `dominio` no importa Spring, JPA, AMQP ni gRPC; entidades de dominio sin anotaciones de persistencia (las `@Entity` viven en `infraestructura` con *mappers*); controladores sin reglas de negocio; un caso de uso = una clase; un agregado por transacción; los eventos se traducen a JSON en `infraestructura` y se publican después del commit; nunca se borra físicamente una Pregunta.
+3. **Clean Architecture (§3.3):** las dependencias apuntan hacia `dominio`; `dominio` no importa Spring, JPA, AMQP ni gRPC; entidades de dominio sin anotaciones de persistencia (las `@Entity` viven en `infraestructura` con *mappers*); controladores sin reglas de negocio; un caso de uso = una clase; un agregado por transacción (salvo la excepción documentada de 11.1 para `AsignarRevisoresCasoUso` y `RegistrarEvaluacionCasoUso`); los eventos se traducen a JSON en `infraestructura` y se publican después del commit; nunca se borra físicamente una Pregunta.
 4. **Sufijos (§3.4):** `CasoUso`, `Puerto`, `Repositorio`, `RepositorioJpa`, `Adaptador`, `Controlador`, `Consumidor`, `Servicio`, `Excepcion`.
 5. **Documentación (§3.2):** **JavaDoc** en toda clase pública y todo método público (propósito, `@param`, `@return`, `@throws` y la regla RF/INV/D/CU que implementa). Cada endpoint documentado en Swagger/OpenAPI.
 6. **Pruebas (§3.5):** pruebas unitarias de dominio **obligatorias** con JUnit 5; cada invariante (INV-xx) tiene al menos una prueba que la viola y comprueba el rechazo. Las pruebas de dominio no levantan base de datos, broker ni servidor.
