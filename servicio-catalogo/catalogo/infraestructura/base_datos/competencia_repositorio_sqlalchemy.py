@@ -34,7 +34,15 @@ class CompetenciaRepositorioSqlAlchemy(CompetenciaRepositorio):
         self._sesion = sesion
 
     def guardar(self, competencia: Competencia) -> None:
-        """Inserta o actualiza la competencia con todos sus temas y subtemas."""
+        """Inserta o actualiza la competencia con todos sus temas y subtemas.
+
+        La escritura se envía a la sesión con ``flush``; el commit lo hace la transacción que abre
+        ``EjecutorTransaccionalSqlAlchemy`` alrededor del caso de uso.
+
+        Args:
+            competencia: Agregado ``Competencia`` completo que se va a guardar, con su jerarquía de
+                temas y subtemas.
+        """
         fila = self._sesion.get(CompetenciaModelo, competencia.id.valor)
         if fila is None:
             fila = CompetenciaModelo(id=competencia.id.valor)

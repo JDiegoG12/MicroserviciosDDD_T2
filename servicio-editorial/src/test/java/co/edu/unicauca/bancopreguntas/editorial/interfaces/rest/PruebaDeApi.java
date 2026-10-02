@@ -35,7 +35,8 @@ import static org.mockito.Mockito.when;
  * Base de las pruebas de la API REST: levanta solo la capa web ({@code @WebMvcTest}) con los puertos de entrada
  * simulados, sin base de datos, broker ni Catálogo (Etapa 2, "Pruebas de la API").
  */
-@WebMvcTest(controllers = {PreguntaControlador.class, ProcesoRevisionControlador.class, SaludControlador.class})
+@WebMvcTest(controllers = {PreguntaControlador.class, ProcesoRevisionControlador.class, SaludControlador.class,
+        DocumentacionControlador.class})
 abstract class PruebaDeApi {
 
     /** UUID de la pregunta de ejemplo. */

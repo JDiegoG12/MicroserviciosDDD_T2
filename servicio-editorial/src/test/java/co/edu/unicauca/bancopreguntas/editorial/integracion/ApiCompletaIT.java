@@ -91,10 +91,12 @@ class ApiCompletaIT extends PruebaDeIntegracion {
     }
 
     @Test
-    @DisplayName("/docs sirve Swagger UI")
+    @DisplayName("/docs sirve Swagger UI con 200 (sin redirección) y sus recursos existen")
     void swaggerUi() throws Exception {
-        int estado = mvc.perform(get("/docs")).andReturn().getResponse().getStatus();
-        assertThat(estado).isIn(200, 302);
+        String pagina = mvc.perform(get("/docs")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(pagina).contains("/openapi.json", "/swagger-ui/swagger-ui-bundle.js");
+        mvc.perform(get("/swagger-ui/swagger-ui-bundle.js")).andExpect(status().isOk());
+        mvc.perform(get("/swagger-ui/swagger-ui.css")).andExpect(status().isOk());
     }
 
     @Test

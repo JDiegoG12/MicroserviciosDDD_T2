@@ -71,8 +71,10 @@ editorial:
 springdoc:
   api-docs:
     path: /openapi.json
+  # springdoc solo ofrece /docs como redirección 302; /docs lo sirve con 200 DocumentacionControlador, que usa los
+  # recursos de springdoc bajo /swagger-ui/. La UI propia de springdoc queda en su ruta predeterminada.
   swagger-ui:
-    path: /docs
+    path: /swagger-ui.html
 
 # Todas las líneas de log llevan el idCorrelacion de la petición (CONTRATOS.md 4.1). Cada evento sale en UNA sola
 # línea: los saltos de línea del mensaje y de las trazas se reemplazan por " | ", así ninguna línea queda sin él.

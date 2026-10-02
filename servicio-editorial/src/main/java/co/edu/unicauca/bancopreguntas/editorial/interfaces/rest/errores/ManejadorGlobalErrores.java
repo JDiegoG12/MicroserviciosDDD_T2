@@ -96,7 +96,8 @@ public class ManejadorGlobalErrores {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ProblemaJson> cuerpoIlegible(HttpMessageNotReadableException error, HttpServletRequest peticion) {
         return responder(MapaCodigosHttp.SOLICITUD_INVALIDA,
-                "El cuerpo de la solicitud falta o no es un JSON válido para este recurso.", peticion, List.of());
+                "El cuerpo de la solicitud falta o no es un JSON válido para este recurso.", peticion,
+                List.of(new ProblemaJson.ErrorDeCampo("cuerpo", "El cuerpo de la solicitud no es un JSON válido")));
     }
 
     /**

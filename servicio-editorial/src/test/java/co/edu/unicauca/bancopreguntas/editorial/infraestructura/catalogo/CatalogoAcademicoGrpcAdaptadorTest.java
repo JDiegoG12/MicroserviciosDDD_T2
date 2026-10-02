@@ -42,7 +42,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 @DisplayName("CatalogoAcademicoGrpcAdaptador (CONTRATOS.md 6)")
 class CatalogoAcademicoGrpcAdaptadorTest {
 
-    private static final Duration PLAZO_DE_PRUEBA = Duration.ofMillis(300);
+    /** Plazo de las llamadas de prueba (el de producción sigue en 2 s, CONTRATOS.md 6). */
+    private static final Duration PLAZO_DE_PRUEBA = Duration.ofSeconds(1);
+    /** Plazo amplio de la llamada de calentamiento. */
+    private static final Duration PLAZO_DE_CALENTAMIENTO = Duration.ofSeconds(10);
 
     private final AtomicReference<BiConsumer<ValidarClasificacionSolicitud, StreamObserver<ValidarClasificacionRespuesta>>> comportamiento =
             new AtomicReference<>();
@@ -75,6 +78,16 @@ class CatalogoAcademicoGrpcAdaptadorTest {
                 .addService(ServerInterceptors.intercept(servicio, capturaDeMetadatos)).build().start();
         canal = InProcessChannelBuilder.forName(nombre).directExecutor().build();
         adaptador = new CatalogoAcademicoGrpcAdaptador(canal, PLAZO_DE_PRUEBA);
+        calentarCanal();
+    }
+
+    // En frío, la primera llamada carga clases de gRPC y protobuf y podía agotar el plazo de prueba (caso
+    // ternaInvalida[1]). Se hace una llamada previa con un plazo amplio y luego se limpia lo capturado.
+    private void calentarCanal() {
+        responder(ValidarClasificacionRespuesta.newBuilder().setValida(true).build());
+        new CatalogoAcademicoGrpcAdaptador(canal, PLAZO_DE_CALENTAMIENTO).validarClasificacion(CLASIFICACION);
+        solicitudRecibida.set(null);
+        correlacionRecibida.set(null);
     }
 
     @AfterEach

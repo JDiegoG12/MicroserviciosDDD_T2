@@ -1,0 +1,3440 @@
+{
+  "info": {
+    "_postman_id": "6f1d2c3b-4a5e-4f60-8172-93a4b5c6d7e8",
+    "name": "BancoPreguntas",
+    "description": "Colección del Taller 2 · Banco de Preguntas Saber Pro (CONTRATOS.md, sección 10).\n\nDemuestra los tres microservicios y sus comunicaciones: REST (C1), gRPC Editorial → Catálogo (C2, de forma indirecta al crear preguntas), eventos PreguntaPublicada y PreguntaArchivada por RabbitMQ (C3) e IntentoDeSimulacroCalificado (C4).\n\nUso\n- Entorno: postman/local.postman_environment.json (usuarios de prueba de CONTRATOS 4.2 y clasificación semilla de 4.3).\n- Orden: ejecute la colección completa, en orden (01 → 06). La carpeta 03 usa la competencia creada en 01; la 06 usa la pregunta creada en 02.\n- Se puede ejecutar varias veces seguidas sobre la misma base de datos: los nombres únicos usan marcas de tiempo y el flujo 04 crea su propia clasificación.\n- Newman: ver postman/README.md.\n\nFuera de la colección (cubierto por pruebas automáticas)\n- 409 CONFLICTO_DE_CONCURRENCIA (bloqueo optimista): servicio-editorial, PersistenciaIT.modificacionesConcurrentes y ApiErroresTest.conflictoDeConcurrencia.\n- Vencimiento por tiempo del intento (TIEMPO_AGOTADO): servicio-evaluacion, test/dominio/intento-de-simulacro.spec.ts y test/aplicacion/{finalizar-intento,obtener-intento,registrar-respuesta}.caso-uso.spec.ts (\"vencimiento perezoso\").\n\ngRPC\n- La colección v2.1 no exporta peticiones gRPC. Para probar CatalogoAcademico.ValidarClasificacion directamente use grpcurl: sección \"Probar gRPC con grpcurl\" del README raíz.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "01 Catálogo",
+      "description": "Catálogo Académico (CONTRATOS 8.2, servicio-catalogo). Demuestra la siembra de 4.3, la administración de la jerarquía Competencia → Tema → Subtema (INV-22 a INV-24) y los errores comunes. Crea con nombre único una competencia que reutiliza la carpeta 03.",
+      "item": [
+        {
+          "name": "01.01 Listar competencias (siembra 4.3)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idDocente}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "DOCENTE"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{urlCatalogo}}/competencias",
+            "description": "GET /competencias (cualquier rol). Comprueba que la siembra de CONTRATOS 4.3 está cargada con sus ids exactos."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test(\"Siembra 4.3 presente\", () => {",
+                  "    const lista = pm.response.json();",
+                  "    const cuantitativo = lista.find(c => c.competenciaId === '22222222-2222-4222-8222-000000000101');",
+                  "    pm.expect(cuantitativo, 'competencia …101').to.exist;",
+                  "    pm.expect(cuantitativo.nombre).to.eql('Razonamiento cuantitativo');",
+                  "    const estadistica = cuantitativo.temas.find(t => t.temaId === '22222222-2222-4222-8222-000000000201');",
+                  "    pm.expect(estadistica, 'tema …201').to.exist;",
+                  "    pm.expect(estadistica.subtemas.map(s => s.subtemaId)).to.include('22222222-2222-4222-8222-000000000301');",
+                  "    pm.expect(lista.map(c => c.competenciaId)).to.include('22222222-2222-4222-8222-000000000102');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "01.02 Crear competencia",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idAdministrador}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "ADMINISTRADOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{urlCatalogo}}/competencias",
+            "description": "POST /competencias (ADMINISTRADOR). Nombre único por ejecución para que la colección se pueda repetir.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"{{nombreCompetencia}}\",\n  \"descripcion\": \"Creada por la colección de Postman\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('nombreCompetencia', 'Competencia Postman ' + Date.now() + '-' + Math.floor(Math.random() * 1e6));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+                  "pm.test(\"Respuesta CompetenciaRespuesta con Location\", () => {",
+                  "    const c = pm.response.json();",
+                  "    pm.expect(c.nombre).to.eql(pm.collectionVariables.get('nombreCompetencia'));",
+                  "    pm.expect(c.temas).to.be.an('array').that.is.empty;",
+                  "    pm.expect(pm.response.headers.get('Location')).to.include('/api/v1/competencias/' + c.competenciaId);",
+                  "});",
+                  "pm.collectionVariables.set('catalogoCompetenciaId', pm.response.json().competenciaId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "01.03 Crear tema",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idAdministrador}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "ADMINISTRADOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{urlCatalogo}}/competencias/{{catalogoCompetenciaId}}/temas",
+            "description": "POST /competencias/{id}/temas (ADMINISTRADOR). Responde la competencia completa; Location apunta a la competencia (8.2).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Tema de Postman\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+                  "pm.test(\"El tema aparece en la competencia\", () => {",
+                  "    const c = pm.response.json();",
+                  "    pm.expect(c.temas.map(t => t.nombre)).to.include('Tema de Postman');",
+                  "    pm.expect(pm.response.headers.get('Location')).to.include('/api/v1/competencias/' + c.competenciaId);",
+                  "});",
+                  "pm.collectionVariables.set('catalogoTemaId', pm.response.json().temas.find(t => t.nombre === 'Tema de Postman').temaId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "01.04 Crear subtema",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idAdministrador}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "ADMINISTRADOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{urlCatalogo}}/competencias/{{catalogoCompetenciaId}}/temas/{{catalogoTemaId}}/subtemas",
+            "description": "POST /competencias/{id}/temas/{temaId}/subtemas (ADMINISTRADOR). Sin elementos huérfanos (INV-23).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Subtema de Postman\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+                  "pm.test(\"El subtema cuelga del tema\", () => {",
+                  "    const tema = pm.response.json().temas.find(t => t.temaId === pm.collectionVariables.get('catalogoTemaId'));",
+                  "    pm.expect(tema.subtemas.map(s => s.nombre)).to.include('Subtema de Postman');",
+                  "});",
+                  "pm.collectionVariables.set('catalogoSubtemaId', pm.response.json().temas.find(t => t.temaId === pm.collectionVariables.get('catalogoTemaId')).subtemas.find(s => s.nombre === 'Subtema de Postman').subtemaId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "01.05 Renombrar competencia",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idAdministrador}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "ADMINISTRADOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{urlCatalogo}}/competencias/{{catalogoCompetenciaId}}",
+            "description": "PUT /competencias/{id} (ADMINISTRADOR). El id es estable aunque cambie el nombre (INV-22, D-13).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"{{nombreCompetencia}} (renombrada)\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test(\"Mismo id, nombre nuevo\", () => {",
+                  "    const c = pm.response.json();",
+                  "    pm.expect(c.competenciaId).to.eql(pm.collectionVariables.get('catalogoCompetenciaId'));",
+                  "    pm.expect(c.nombre).to.eql(pm.collectionVariables.get('nombreCompetencia') + ' (renombrada)');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "01.06 Error · nombre duplicado 409",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idAdministrador}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "ADMINISTRADOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{urlCatalogo}}/competencias",
+            "description": "INV-24: el nombre de una competencia es único (sin distinguir mayúsculas ni tildes) → 409 NOMBRE_DUPLICADO.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"{{nombreCompetencia}} (RENOMBRADA)\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 409', () => pm.response.to.have.status(409));",
+                  "pm.test('problem+json con codigo NOMBRE_DUPLICADO', () => {",
+                  "    pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');",
+                  "    const cuerpo = pm.response.json();",
+                  "    pm.expect(cuerpo.codigo).to.eql('NOMBRE_DUPLICADO');",
+                  "    pm.expect(cuerpo.status).to.eql(409);",
+                  "    pm.expect(cuerpo).to.have.property('idCorrelacion');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "01.07 Error · sin encabezados 401",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{urlCatalogo}}/competencias",
+            "description": "CONTRATOS 4.1: sin X-Usuario-Id ni X-Roles → 401 NO_AUTENTICADO.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Sin identidad\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 401', () => pm.response.to.have.status(401));",
+                  "pm.test('problem+json con codigo NO_AUTENTICADO', () => {",
+                  "    pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');",
+                  "    const cuerpo = pm.response.json();",
+                  "    pm.expect(cuerpo.codigo).to.eql('NO_AUTENTICADO');",
+                  "    pm.expect(cuerpo.status).to.eql(401);",
+                  "    pm.expect(cuerpo).to.have.property('idCorrelacion');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "01.08 Error · ESTUDIANTE creando 403",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idEstudiante}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "ESTUDIANTE"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{urlCatalogo}}/competencias",
+            "description": "Solo ADMINISTRADOR administra el catálogo (D-11) → 403 ACCESO_DENEGADO.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Intento de estudiante\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+                  "pm.test('problem+json con codigo ACCESO_DENEGADO', () => {",
+                  "    pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');",
+                  "    const cuerpo = pm.response.json();",
+                  "    pm.expect(cuerpo.codigo).to.eql('ACCESO_DENEGADO');",
+                  "    pm.expect(cuerpo.status).to.eql(403);",
+                  "    pm.expect(cuerpo).to.have.property('idCorrelacion');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "01.09 Error · competencia inexistente 404",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idDocente}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "DOCENTE"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{urlCatalogo}}/competencias/22222222-2222-4222-8222-999999999999",
+            "description": "GET /competencias/{id} de un id que no existe → 404 COMPETENCIA_NO_ENCONTRADA."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 404', () => pm.response.to.have.status(404));",
+                  "pm.test('problem+json con codigo COMPETENCIA_NO_ENCONTRADA', () => {",
+                  "    pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');",
+                  "    const cuerpo = pm.response.json();",
+                  "    pm.expect(cuerpo.codigo).to.eql('COMPETENCIA_NO_ENCONTRADA');",
+                  "    pm.expect(cuerpo.status).to.eql(404);",
+                  "    pm.expect(cuerpo).to.have.property('idCorrelacion');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "01.10 Error · ruta inexistente 404",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idDocente}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "DOCENTE"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{urlCatalogo}}/ruta-que-no-existe",
+            "description": "Error de protocolo (CONTRATOS 5.3 v1.10): ruta que no existe → 404 RECURSO_NO_ENCONTRADO."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 404', () => pm.response.to.have.status(404));",
+                  "pm.test('problem+json con codigo RECURSO_NO_ENCONTRADO', () => {",
+                  "    pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');",
+                  "    const cuerpo = pm.response.json();",
+                  "    pm.expect(cuerpo.codigo).to.eql('RECURSO_NO_ENCONTRADO');",
+                  "    pm.expect(cuerpo.status).to.eql(404);",
+                  "    pm.expect(cuerpo).to.have.property('idCorrelacion');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02 Editorial",
+      "description": "Gestión Editorial (CONTRATOS 8.1, servicio-editorial): creación con validación estructural (RF-08 a RF-13), validación gRPC de la clasificación (C2), modificación, consulta con filtros y los errores de negocio del ciclo de vida. Usa la clasificación semilla de 4.3.",
+      "item": [
+        {
+          "name": "02.01 Crear pregunta incompleta (BORRADOR)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idAutor}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "AUTOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{urlEditorial}}/preguntas",
+            "description": "CU-04 y D-02: una pregunta incompleta se guarda en BORRADOR con la lista erroresValidacion (no es error HTTP).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contexto\": \"Solo el contexto\",\n  \"clasificacion\": {\n    \"competenciaId\": \"22222222-2222-4222-8222-000000000101\",\n    \"temaId\": \"22222222-2222-4222-8222-000000000201\",\n    \"subtemaId\": \"22222222-2222-4222-8222-000000000301\"\n  },\n  \"nivelDificultad\": \"MEDIO\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+                  "pm.test(\"BORRADOR con errores de validación\", () => {",
+                  "    const p = pm.response.json();",
+                  "    pm.expect(p.estado).to.eql('BORRADOR');",
+                  "    const reglas = p.erroresValidacion.map(e => e.regla);",
+                  "    pm.expect(reglas).to.include.members(['RF-09', 'RF-10', 'INV-04']);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "02.02 Crear pregunta completa (EN_CONSTRUCCION)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idAutor}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "AUTOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{urlEditorial}}/preguntas",
+            "description": "CU-04: supera la validación estructural y la validación gRPC real contra Catálogo (C2) → EN_CONSTRUCCION.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contexto\": \"Un grupo de 5 estudiantes obtuvo las notas 3,0; 3,5; 4,0; 4,0 y 4,5.\",\n  \"preguntaDirecta\": \"¿Cuál es la moda del conjunto de notas?\",\n  \"opciones\": [\n    {\n      \"letra\": \"A\",\n      \"texto\": \"3,0\",\n      \"esCorrecta\": false\n    },\n    {\n      \"letra\": \"B\",\n      \"texto\": \"3,8\",\n      \"esCorrecta\": false\n    },\n    {\n      \"letra\": \"C\",\n      \"texto\": \"4,0\",\n      \"esCorrecta\": true\n    },\n    {\n      \"letra\": \"D\",\n      \"texto\": \"4,5\",\n      \"esCorrecta\": false\n    }\n  ],\n  \"justificacion\": \"La moda es el valor que más se repite: 4,0 aparece dos veces.\",\n  \"bibliografia\": [\n    \"Walpole, R. Probabilidad y estadística. Pearson, 2012.\"\n  ],\n  \"clasificacion\": {\n    \"competenciaId\": \"22222222-2222-4222-8222-000000000101\",\n    \"temaId\": \"22222222-2222-4222-8222-000000000201\",\n    \"subtemaId\": \"22222222-2222-4222-8222-000000000301\"\n  },\n  \"nivelDificultad\": \"BAJO\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+                  "pm.test(\"EN_CONSTRUCCION, autor y fechas ISO UTC\", () => {",
+                  "    const p = pm.response.json();",
+                  "    pm.expect(p.estado).to.eql('EN_CONSTRUCCION');",
+                  "    pm.expect(p.autorId).to.eql(pm.environment.get('idAutor'));",
+                  "    pm.expect(p.fechaCreacion).to.match(/Z$/);",
+                  "});",
+                  "pm.collectionVariables.set('editorialPreguntaId', pm.response.json().preguntaId);",
+                  "pm.collectionVariables.set('preguntaId', pm.response.json().preguntaId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "02.03 Error · clasificación inválida 422",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idAutor}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "AUTOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{urlEditorial}}/preguntas",
+            "description": "INV-07: el tema …203 no pertenece a la competencia …101. Catálogo responde valida=false y Editorial → 422 CLASIFICACION_INVALIDA.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contexto\": \"Un grupo de 5 estudiantes obtuvo las notas 3,0; 3,5; 4,0; 4,0 y 4,5.\",\n  \"preguntaDirecta\": \"¿Cuál es la moda del conjunto de notas?\",\n  \"opciones\": [\n    {\n      \"letra\": \"A\",\n      \"texto\": \"3,0\",\n      \"esCorrecta\": false\n    },\n    {\n      \"letra\": \"B\",\n      \"texto\": \"3,8\",\n      \"esCorrecta\": false\n    },\n    {\n      \"letra\": \"C\",\n      \"texto\": \"4,0\",\n      \"esCorrecta\": true\n    },\n    {\n      \"letra\": \"D\",\n      \"texto\": \"4,5\",\n      \"esCorrecta\": false\n    }\n  ],\n  \"justificacion\": \"La moda es el valor que más se repite: 4,0 aparece dos veces.\",\n  \"bibliografia\": [\n    \"Walpole, R. Probabilidad y estadística. Pearson, 2012.\"\n  ],\n  \"clasificacion\": {\n    \"competenciaId\": \"22222222-2222-4222-8222-000000000101\",\n    \"temaId\": \"22222222-2222-4222-8222-000000000203\",\n    \"subtemaId\": \"22222222-2222-4222-8222-000000000304\"\n  },\n  \"nivelDificultad\": \"BAJO\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 422', () => pm.response.to.have.status(422));",
+                  "pm.test('problem+json con codigo CLASIFICACION_INVALIDA', () => {",
+                  "    pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');",
+                  "    const cuerpo = pm.response.json();",
+                  "    pm.expect(cuerpo.codigo).to.eql('CLASIFICACION_INVALIDA');",
+                  "    pm.expect(cuerpo.status).to.eql(422);",
+                  "    pm.expect(cuerpo).to.have.property('idCorrelacion');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "02.04 Modificar pregunta",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idAutor}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "AUTOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{urlEditorial}}/preguntas/{{editorialPreguntaId}}",
+            "description": "CU-05: el autor modifica su pregunta EN_CONSTRUCCION; se revalida y se anexa un registro MODIFICACION (INV-13).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contexto\": \"Un grupo de 5 estudiantes obtuvo las notas 3,0; 3,5; 4,0; 4,0 y 4,5.\",\n  \"preguntaDirecta\": \"¿Cuál es la moda de las notas del grupo?\",\n  \"opciones\": [\n    {\n      \"letra\": \"A\",\n      \"texto\": \"3,0\",\n      \"esCorrecta\": false\n    },\n    {\n      \"letra\": \"B\",\n      \"texto\": \"3,8\",\n      \"esCorrecta\": false\n    },\n    {\n      \"letra\": \"C\",\n      \"texto\": \"4,0\",\n      \"esCorrecta\": true\n    },\n    {\n      \"letra\": \"D\",\n      \"texto\": \"4,5\",\n      \"esCorrecta\": false\n    }\n  ],\n  \"justificacion\": \"La moda es el valor que más se repite: 4,0 aparece dos veces.\",\n  \"bibliografia\": [\n    \"Walpole, R. Probabilidad y estadística. Pearson, 2012.\"\n  ],\n  \"clasificacion\": {\n    \"competenciaId\": \"22222222-2222-4222-8222-000000000101\",\n    \"temaId\": \"22222222-2222-4222-8222-000000000201\",\n    \"subtemaId\": \"22222222-2222-4222-8222-000000000301\"\n  },\n  \"nivelDificultad\": \"BAJO\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test(\"Contenido actualizado y sigue EN_CONSTRUCCION\", () => {",
+                  "    const p = pm.response.json();",
+                  "    pm.expect(p.preguntaDirecta).to.eql('¿Cuál es la moda de las notas del grupo?');",
+                  "    pm.expect(p.estado).to.eql('EN_CONSTRUCCION');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "02.05 Consultar preguntas con filtros",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idAutor}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "AUTOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{urlEditorial}}/preguntas?competenciaId=22222222-2222-4222-8222-000000000101&estado=EN_CONSTRUCCION&nivelDificultad=BAJO&pagina=0&tamano=5",
+            "description": "CU-06: GET /preguntas con filtros y paginación (5.1). Un AUTOR solo ve sus preguntas (unión de roles, 8.1)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test(\"Página 5.1 con filtros aplicados\", () => {",
+                  "    const pagina = pm.response.json();",
+                  "    pm.expect(pagina).to.include.keys('contenido', 'pagina', 'tamano', 'totalElementos', 'totalPaginas');",
+                  "    pm.expect(pagina.tamano).to.eql(5);",
+                  "    pm.expect(pagina.totalElementos).to.be.at.least(1);",
+                  "    pagina.contenido.forEach(p => { pm.expect(p.estado).to.eql('EN_CONSTRUCCION'); pm.expect(p.autorId).to.eql(pm.environment.get('idAutor')); });",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "02.06 Error · transición inválida 409",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idAdministrador}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "ADMINISTRADOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{urlEditorial}}/preguntas/{{editorialPreguntaId}}/publicacion",
+            "description": "INV-09: publicar una pregunta EN_CONSTRUCCION no es una transición declarada → 409 TRANSICION_NO_PERMITIDA."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 409', () => pm.response.to.have.status(409));",
+                  "pm.test('problem+json con codigo TRANSICION_NO_PERMITIDA', () => {",
+                  "    pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');",
+                  "    const cuerpo = pm.response.json();",
+                  "    pm.expect(cuerpo.codigo).to.eql('TRANSICION_NO_PERMITIDA');",
+                  "    pm.expect(cuerpo.status).to.eql(409);",
+                  "    pm.expect(cuerpo).to.have.property('idCorrelacion');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "02.07 Enviar a revisión",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idAutor}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "AUTOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{urlEditorial}}/preguntas/{{editorialPreguntaId}}/envio-revision",
+            "description": "CU-07: de EN_CONSTRUCCION a PENDIENTE_REVISION; desde aquí ya no es editable."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test(\"PENDIENTE_REVISION\", () => {",
+                  "    pm.expect(pm.response.json().estado).to.eql('PENDIENTE_REVISION');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "02.08 Error · modificar pregunta no editable 409",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idAutor}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "AUTOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{urlEditorial}}/preguntas/{{editorialPreguntaId}}",
+            "description": "INV-10: solo BORRADOR y EN_CONSTRUCCION son editables → 409 PREGUNTA_NO_EDITABLE.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contexto\": \"Un grupo de 5 estudiantes obtuvo las notas 3,0; 3,5; 4,0; 4,0 y 4,5.\",\n  \"preguntaDirecta\": \"¿Cuál es la moda del conjunto de notas?\",\n  \"opciones\": [\n    {\n      \"letra\": \"A\",\n      \"texto\": \"3,0\",\n      \"esCorrecta\": false\n    },\n    {\n      \"letra\": \"B\",\n      \"texto\": \"3,8\",\n      \"esCorrecta\": false\n    },\n    {\n      \"letra\": \"C\",\n      \"texto\": \"4,0\",\n      \"esCorrecta\": true\n    },\n    {\n      \"letra\": \"D\",\n      \"texto\": \"4,5\",\n      \"esCorrecta\": false\n    }\n  ],\n  \"justificacion\": \"La moda es el valor que más se repite: 4,0 aparece dos veces.\",\n  \"bibliografia\": [\n    \"Walpole, R. Probabilidad y estadística. Pearson, 2012.\"\n  ],\n  \"clasificacion\": {\n    \"competenciaId\": \"22222222-2222-4222-8222-000000000101\",\n    \"temaId\": \"22222222-2222-4222-8222-000000000201\",\n    \"subtemaId\": \"22222222-2222-4222-8222-000000000301\"\n  },\n  \"nivelDificultad\": \"BAJO\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 409', () => pm.response.to.have.status(409));",
+                  "pm.test('problem+json con codigo PREGUNTA_NO_EDITABLE', () => {",
+                  "    pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');",
+                  "    const cuerpo = pm.response.json();",
+                  "    pm.expect(cuerpo.codigo).to.eql('PREGUNTA_NO_EDITABLE');",
+                  "    pm.expect(cuerpo.status).to.eql(409);",
+                  "    pm.expect(cuerpo).to.have.property('idCorrelacion');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "02.09 Error · revisores insuficientes 422",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idAdministrador}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "ADMINISTRADOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{urlEditorial}}/preguntas/{{editorialPreguntaId}}/procesos-revision",
+            "description": "INV-15 y D-03: se requieren al menos 2 revisores → 422 REVISORES_INSUFICIENTES.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"revisoresIds\": [\n    \"{{idRevisor1}}\"\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 422', () => pm.response.to.have.status(422));",
+                  "pm.test('problem+json con codigo REVISORES_INSUFICIENTES', () => {",
+                  "    pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');",
+                  "    const cuerpo = pm.response.json();",
+                  "    pm.expect(cuerpo.codigo).to.eql('REVISORES_INSUFICIENTES');",
+                  "    pm.expect(cuerpo.status).to.eql(422);",
+                  "    pm.expect(cuerpo).to.have.property('idCorrelacion');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "02.10 Error · autor como revisor 422",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idAdministrador}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "ADMINISTRADOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{urlEditorial}}/preguntas/{{editorialPreguntaId}}/procesos-revision",
+            "description": "INV-16 y D-06: el autor no puede ser revisor de su pregunta → 422 AUTOR_NO_PUEDE_SER_REVISOR.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"revisoresIds\": [\n    \"{{idRevisor1}}\",\n    \"{{idAutor}}\"\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 422', () => pm.response.to.have.status(422));",
+                  "pm.test('problem+json con codigo AUTOR_NO_PUEDE_SER_REVISOR', () => {",
+                  "    pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');",
+                  "    const cuerpo = pm.response.json();",
+                  "    pm.expect(cuerpo.codigo).to.eql('AUTOR_NO_PUEDE_SER_REVISOR');",
+                  "    pm.expect(cuerpo.status).to.eql(422);",
+                  "    pm.expect(cuerpo).to.have.property('idCorrelacion');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03 Evaluación",
+      "description": "Evaluación y Simulacros (CONTRATOS 8.3, servicio-evaluacion). La preparación publica en Editorial una pregunta de la competencia creada en 01 Catálogo; luego se comprueba la copia local (evento C3), la definición de simulacros con sus invariantes (INV-26, INV-28) y la consulta de un intento como DOCENTE. Ejecute antes la carpeta 01.",
+      "item": [
+        {
+          "name": "03.01 · Preparación · Crear pregunta de preparación (EN_CONSTRUCCION)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idAutor}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "AUTOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{urlEditorial}}/preguntas",
+            "description": "CU-04 (CONTRATOS 8.1). Pregunta completa: nace en BORRADOR y pasa a EN_CONSTRUCCION en la misma petición. Editorial valida la clasificación con Catálogo por gRPC (C2) antes de guardar. Preparación: usa la competencia creada en 01 Catálogo.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contexto\": \"Un grupo de 5 estudiantes obtuvo las notas 3,0; 3,5; 4,0; 4,0 y 4,5.\",\n  \"preguntaDirecta\": \"¿Cuál es la moda del conjunto de notas? (de preparación)\",\n  \"opciones\": [\n    {\n      \"letra\": \"A\",\n      \"texto\": \"3,0\",\n      \"esCorrecta\": false\n    },\n    {\n      \"letra\": \"B\",\n      \"texto\": \"3,8\",\n      \"esCorrecta\": false\n    },\n    {\n      \"letra\": \"C\",\n      \"texto\": \"4,0\",\n      \"esCorrecta\": true\n    },\n    {\n      \"letra\": \"D\",\n      \"texto\": \"4,5\",\n      \"esCorrecta\": false\n    }\n  ],\n  \"justificacion\": \"La moda es el valor que más se repite: 4,0 aparece dos veces.\",\n  \"bibliografia\": [\n    \"Walpole, R. Probabilidad y estadística. Pearson, 2012.\"\n  ],\n  \"clasificacion\": {\n    \"competenciaId\": \"{{catalogoCompetenciaId}}\",\n    \"temaId\": \"{{catalogoTemaId}}\",\n    \"subtemaId\": \"{{catalogoSubtemaId}}\"\n  },\n  \"nivelDificultad\": \"BAJO\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+                  "pm.test(\"Location apunta a la pregunta\", () => {",
+                  "    pm.expect(pm.response.headers.get('Location')).to.include('/api/v1/preguntas/' + pm.response.json().preguntaId);",
+                  "});",
+                  "pm.test(\"Estado EN_CONSTRUCCION y sin errores de validación\", () => {",
+                  "    const p = pm.response.json();",
+                  "    pm.expect(p.estado).to.eql('EN_CONSTRUCCION');",
+                  "    pm.expect(p.erroresValidacion).to.be.an('array').that.is.empty;",
+                  "    pm.expect(p.clasificacion.subtemaId).to.eql(pm.variables.replaceIn('{{catalogoSubtemaId}}'));",
+                  "});",
+                  "pm.collectionVariables.set('evalPreguntaId', pm.response.json().preguntaId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03.02 · Preparación · Enviar a revisión de preparación",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idAutor}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "AUTOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{urlEditorial}}/preguntas/{{evalPreguntaId}}/envio-revision",
+            "description": "CU-07: de EN_CONSTRUCCION a PENDIENTE_REVISION (solo el autor)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test(\"Estado PENDIENTE_REVISION\", () => {",
+                  "    pm.expect(pm.response.json().estado).to.eql('PENDIENTE_REVISION');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03.03 · Preparación · Asignar 2 revisores de preparación",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idAdministrador}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "ADMINISTRADOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{urlEditorial}}/preguntas/{{evalPreguntaId}}/procesos-revision",
+            "description": "CU-10 (D-14): abre el proceso de revisión y pasa la pregunta a EN_REVISION en una sola transacción (excepción 3.3.5).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"revisoresIds\": [\n    \"{{idRevisor1}}\",\n    \"{{idRevisor2}}\"\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+                  "pm.test(\"Proceso ABIERTO con 2 asignaciones\", () => {",
+                  "    const p = pm.response.json();",
+                  "    pm.expect(p.estado).to.eql('ABIERTO');",
+                  "    pm.expect(p.asignaciones).to.have.lengthOf(2);",
+                  "    pm.expect(p.dictamen).to.be.null;",
+                  "});",
+                  "pm.collectionVariables.set('evalProcesoId', pm.response.json().procesoId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03.04 · Preparación · Evaluación aprobatoria revisor 1 de preparación",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idRevisor1}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "REVISOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{urlEditorial}}/procesos-revision/{{evalProcesoId}}/evaluaciones",
+            "description": "CU-11: el primer revisor evalúa; aún no hay dictamen (INV-19).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"criterios\": [\n    {\n      \"criterio\": \"PEDAGOGICO\",\n      \"valoracion\": 4\n    },\n    {\n      \"criterio\": \"TECNICO\",\n      \"valoracion\": 5\n    },\n    {\n      \"criterio\": \"ESTRUCTURAL\",\n      \"valoracion\": 4\n    }\n  ],\n  \"observaciones\": [\n    \"Bien construida\"\n  ],\n  \"decision\": \"APROBATORIA\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+                  "pm.test(\"Sin dictamen mientras falte una evaluación\", () => {",
+                  "    pm.expect(pm.response.json().dictamen).to.be.null;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03.05 · Preparación · Evaluación aprobatoria revisor 2 de preparación",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idRevisor2}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "REVISOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{urlEditorial}}/procesos-revision/{{evalProcesoId}}/evaluaciones",
+            "description": "CU-11 + CU-12: la última evaluación dispara el dictamen automático; 2 de 2 aprobatorias → APROBADA (INV-20).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"criterios\": [\n    {\n      \"criterio\": \"PEDAGOGICO\",\n      \"valoracion\": 4\n    },\n    {\n      \"criterio\": \"TECNICO\",\n      \"valoracion\": 5\n    },\n    {\n      \"criterio\": \"ESTRUCTURAL\",\n      \"valoracion\": 4\n    }\n  ],\n  \"observaciones\": [\n    \"Distractores plausibles\"\n  ],\n  \"decision\": \"APROBATORIA\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+                  "pm.test(\"Dictamen APROBADA con 100 %\", () => {",
+                  "    const p = pm.response.json();",
+                  "    pm.expect(p.estado).to.eql('CERRADO');",
+                  "    pm.expect(p.dictamen.resultado).to.eql('APROBADA');",
+                  "    pm.expect(Number(p.dictamen.porcentajeAprobacion)).to.eql(100);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03.06 · Preparación · Publicar pregunta de preparación",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idAdministrador}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "ADMINISTRADOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{urlEditorial}}/preguntas/{{evalPreguntaId}}/publicacion",
+            "description": "CU-08: de APROBADA a PUBLICADA. Después del commit Editorial emite PreguntaPublicada en editorial.eventos (C3)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test(\"Estado PUBLICADA\", () => {",
+                  "    pm.expect(pm.response.json().estado).to.eql('PUBLICADA');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03.07 Ver preguntas evaluables (espera el evento)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idDocente}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "DOCENTE"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{urlEvaluacion}}/preguntas-evaluables?competenciaId={{catalogoCompetenciaId}}&tamano=100",
+            "description": "GET /preguntas-evaluables (DOCENTE): la copia local que Evaluación guardó al consumir PreguntaPublicada (C3). Reintenta cada 500 ms hasta ~10 s porque el evento es asíncrono."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const datos = pm.response.code === 200 ? pm.response.json() : { contenido: [] };",
+                  "const contenido = datos.contenido || [];",
+                  "const encontrado = (contenido.some(p => p.preguntaId === pm.collectionVariables.get('evalPreguntaId') && p.estado === 'PUBLICADA'));",
+                  "const intentos = Number(pm.collectionVariables.get('esperaEvaluacion') || 0);",
+                  "if (!encontrado && intentos < 20) {",
+                  "    pm.collectionVariables.set('esperaEvaluacion', intentos + 1);",
+                  "    setTimeout(() => {}, 500);",
+                  "    postman.setNextRequest(pm.info.requestName);",
+                  "} else {",
+                  "    pm.collectionVariables.set('esperaEvaluacion', 0);",
+                  "    pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "    pm.test(\"La pregunta publicada llegó a Evaluación como PUBLICADA\", () => pm.expect(encontrado, 'tras ' + intentos + ' reintentos de 500 ms').to.be.true);",
+                  "    pm.test('Las copias locales nunca exponen letraCorrecta', () => contenido.forEach(p => pm.expect(p).to.not.have.property('letraCorrecta')));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03.08 Definir simulacro",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idDocente}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "DOCENTE"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{urlEvaluacion}}/simulacros",
+            "description": "CU-13 (DOCENTE): selección al azar entre copias PUBLICADA que cumplen los criterios (INV-25, INV-27).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Simulacro Postman {{$timestamp}}\",\n  \"criterios\": {\n    \"competenciaIds\": [\n      \"{{catalogoCompetenciaId}}\"\n    ],\n    \"temaIds\": [],\n    \"subtemaIds\": [],\n    \"nivelesDificultad\": [\n      \"BAJO\"\n    ]\n  },\n  \"cantidadPreguntas\": 1,\n  \"duracionMaximaMinutos\": 20\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+                  "pm.test(\"SimulacroRespuesta con 1 pregunta en posición 1\", () => {",
+                  "    const s = pm.response.json();",
+                  "    pm.expect(s.preguntas).to.have.lengthOf(1);",
+                  "    pm.expect(s.preguntas[0].posicion).to.eql(1);",
+                  "    pm.expect(s.docenteId).to.eql(pm.environment.get('idDocente'));",
+                  "});",
+                  "pm.collectionVariables.set('evalSimulacroId', pm.response.json().simulacroId);",
+                  "pm.collectionVariables.set('simulacroId', pm.response.json().simulacroId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03.09 Error · preguntas insuficientes 422",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idDocente}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "DOCENTE"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{urlEvaluacion}}/simulacros",
+            "description": "INV-26: si hay menos candidatas que cantidadPreguntas la definición no se completa → 422 PREGUNTAS_INSUFICIENTES.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Simulacro imposible {{$timestamp}}\",\n  \"criterios\": {\n    \"competenciaIds\": [\n      \"{{catalogoCompetenciaId}}\"\n    ],\n    \"temaIds\": [],\n    \"subtemaIds\": [],\n    \"nivelesDificultad\": []\n  },\n  \"cantidadPreguntas\": 500,\n  \"duracionMaximaMinutos\": 30\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 422', () => pm.response.to.have.status(422));",
+                  "pm.test('problem+json con codigo PREGUNTAS_INSUFICIENTES', () => {",
+                  "    pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');",
+                  "    const cuerpo = pm.response.json();",
+                  "    pm.expect(cuerpo.codigo).to.eql('PREGUNTAS_INSUFICIENTES');",
+                  "    pm.expect(cuerpo.status).to.eql(422);",
+                  "    pm.expect(cuerpo).to.have.property('idCorrelacion');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03.10 Error · duración inválida 422",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idDocente}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "DOCENTE"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{urlEvaluacion}}/simulacros",
+            "description": "INV-28: la duración máxima debe ser estrictamente positiva → 422 DURACION_INVALIDA.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Simulacro sin tiempo {{$timestamp}}\",\n  \"criterios\": {\n    \"competenciaIds\": [\n      \"{{catalogoCompetenciaId}}\"\n    ],\n    \"temaIds\": [],\n    \"subtemaIds\": [],\n    \"nivelesDificultad\": []\n  },\n  \"cantidadPreguntas\": 1,\n  \"duracionMaximaMinutos\": 0\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 422', () => pm.response.to.have.status(422));",
+                  "pm.test('problem+json con codigo DURACION_INVALIDA', () => {",
+                  "    pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');",
+                  "    const cuerpo = pm.response.json();",
+                  "    pm.expect(cuerpo.codigo).to.eql('DURACION_INVALIDA');",
+                  "    pm.expect(cuerpo.status).to.eql(422);",
+                  "    pm.expect(cuerpo).to.have.property('idCorrelacion');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03.11 Iniciar intento (ESTUDIANTE)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idEstudiante}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "ESTUDIANTE"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{urlEvaluacion}}/simulacros/{{evalSimulacroId}}/intentos",
+            "description": "CU-14: el estudiante inicia un intento; las preguntas nunca exponen letraCorrecta."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+                  "pm.test(\"Intento EN_CURSO sin letraCorrecta\", () => {",
+                  "    const i = pm.response.json();",
+                  "    pm.expect(i.estado).to.eql('EN_CURSO');",
+                  "    pm.expect(i.estudianteId).to.eql(pm.environment.get('idEstudiante'));",
+                  "    i.preguntas.forEach(p => pm.expect(p).to.not.have.property('letraCorrecta'));",
+                  "});",
+                  "pm.collectionVariables.set('evalIntentoId', pm.response.json().intentoId);",
+                  "pm.collectionVariables.set('intentoId', pm.response.json().intentoId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03.12 Consultar intento como DOCENTE",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idDocente}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "DOCENTE"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{urlEvaluacion}}/intentos/{{evalIntentoId}}",
+            "description": "GET /intentos/{id}: el DOCENTE puede leer cualquier intento, solo lectura (MODELO-DOMINIO A.2, INV-29)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test(\"Mismo intento, sin calificación todavía\", () => {",
+                  "    const i = pm.response.json();",
+                  "    pm.expect(i.intentoId).to.eql(pm.collectionVariables.get('evalIntentoId'));",
+                  "    pm.expect(i.calificacion).to.be.null;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "04 Flujo completo",
+      "description": "Demostración principal de punta a punta (CONTRATOS 10), ejecutable de corrido: catálogo → 2 preguntas revisadas y publicadas en Editorial → evento PreguntaPublicada por RabbitMQ → simulacro e intento calificado en Evaluación → archivado propagado → trazabilidad. Crea su propia competencia, tema y subtema con nombre único para que los criterios solo incluyan las preguntas de esta ejecución.",
+      "item": [
+        {
+          "name": "04.01 Verificar siembra del catálogo",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idDocente}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "DOCENTE"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{urlCatalogo}}/competencias/22222222-2222-4222-8222-000000000101",
+            "description": "Paso 1 · La siembra de CONTRATOS 4.3 está cargada."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test(\"Razonamiento cuantitativo → Estadística → Medidas de tendencia central\", () => {",
+                  "    const c = pm.response.json();",
+                  "    pm.expect(c.nombre).to.eql('Razonamiento cuantitativo');",
+                  "    pm.expect(c.temas.find(t => t.temaId === '22222222-2222-4222-8222-000000000201').subtemas.map(s => s.subtemaId)).to.include('22222222-2222-4222-8222-000000000301');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.02 Crear competencia del flujo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idAdministrador}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "ADMINISTRADOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{urlCatalogo}}/competencias",
+            "description": "Paso 1 · Clasificación propia de esta ejecución (nombre único) para que ejecuciones anteriores no interfieran con los criterios del simulacro.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Flujo Postman {{$timestamp}}-{{$randomInt}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('flujoCompetenciaId', pm.response.json().competenciaId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.03 Crear tema del flujo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idAdministrador}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "ADMINISTRADOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{urlCatalogo}}/competencias/{{flujoCompetenciaId}}/temas",
+            "description": "Paso 1 · Tema de la competencia del flujo.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Estadística del flujo\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('flujoTemaId', pm.response.json().temas[0].temaId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.04 Crear subtema del flujo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idAdministrador}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "ADMINISTRADOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{urlCatalogo}}/competencias/{{flujoCompetenciaId}}/temas/{{flujoTemaId}}/subtemas",
+            "description": "Paso 1 · Subtema del flujo: aquí se clasifican las 2 preguntas.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Moda del flujo\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('flujoSubtemaId', pm.response.json().temas[0].subtemas[0].subtemaId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.11 · Paso 2 · Crear pregunta 1 (EN_CONSTRUCCION)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idAutor}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "AUTOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{urlEditorial}}/preguntas",
+            "description": "CU-04 (CONTRATOS 8.1). Pregunta completa: nace en BORRADOR y pasa a EN_CONSTRUCCION en la misma petición. Editorial valida la clasificación con Catálogo por gRPC (C2) antes de guardar.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contexto\": \"Un grupo de 5 estudiantes obtuvo las notas 3,0; 3,5; 4,0; 4,0 y 4,5.\",\n  \"preguntaDirecta\": \"¿Cuál es la moda del conjunto de notas? (1)\",\n  \"opciones\": [\n    {\n      \"letra\": \"A\",\n      \"texto\": \"3,0\",\n      \"esCorrecta\": false\n    },\n    {\n      \"letra\": \"B\",\n      \"texto\": \"3,8\",\n      \"esCorrecta\": false\n    },\n    {\n      \"letra\": \"C\",\n      \"texto\": \"4,0\",\n      \"esCorrecta\": true\n    },\n    {\n      \"letra\": \"D\",\n      \"texto\": \"4,5\",\n      \"esCorrecta\": false\n    }\n  ],\n  \"justificacion\": \"La moda es el valor que más se repite: 4,0 aparece dos veces.\",\n  \"bibliografia\": [\n    \"Walpole, R. Probabilidad y estadística. Pearson, 2012.\"\n  ],\n  \"clasificacion\": {\n    \"competenciaId\": \"{{flujoCompetenciaId}}\",\n    \"temaId\": \"{{flujoTemaId}}\",\n    \"subtemaId\": \"{{flujoSubtemaId}}\"\n  },\n  \"nivelDificultad\": \"BAJO\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+                  "pm.test(\"Location apunta a la pregunta\", () => {",
+                  "    pm.expect(pm.response.headers.get('Location')).to.include('/api/v1/preguntas/' + pm.response.json().preguntaId);",
+                  "});",
+                  "pm.test(\"Estado EN_CONSTRUCCION y sin errores de validación\", () => {",
+                  "    const p = pm.response.json();",
+                  "    pm.expect(p.estado).to.eql('EN_CONSTRUCCION');",
+                  "    pm.expect(p.erroresValidacion).to.be.an('array').that.is.empty;",
+                  "    pm.expect(p.clasificacion.subtemaId).to.eql(pm.variables.replaceIn('{{flujoSubtemaId}}'));",
+                  "});",
+                  "pm.collectionVariables.set('flujoPregunta1Id', pm.response.json().preguntaId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.12 · Paso 2 · Enviar a revisión 1",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idAutor}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "AUTOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{urlEditorial}}/preguntas/{{flujoPregunta1Id}}/envio-revision",
+            "description": "CU-07: de EN_CONSTRUCCION a PENDIENTE_REVISION (solo el autor)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test(\"Estado PENDIENTE_REVISION\", () => {",
+                  "    pm.expect(pm.response.json().estado).to.eql('PENDIENTE_REVISION');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.13 · Paso 2 · Asignar 2 revisores 1",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idAdministrador}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "ADMINISTRADOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{urlEditorial}}/preguntas/{{flujoPregunta1Id}}/procesos-revision",
+            "description": "CU-10 (D-14): abre el proceso de revisión y pasa la pregunta a EN_REVISION en una sola transacción (excepción 3.3.5).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"revisoresIds\": [\n    \"{{idRevisor1}}\",\n    \"{{idRevisor2}}\"\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+                  "pm.test(\"Proceso ABIERTO con 2 asignaciones\", () => {",
+                  "    const p = pm.response.json();",
+                  "    pm.expect(p.estado).to.eql('ABIERTO');",
+                  "    pm.expect(p.asignaciones).to.have.lengthOf(2);",
+                  "    pm.expect(p.dictamen).to.be.null;",
+                  "});",
+                  "pm.collectionVariables.set('flujoProceso1Id', pm.response.json().procesoId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.14 · Paso 2 · Evaluación aprobatoria revisor 1 1",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idRevisor1}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "REVISOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{urlEditorial}}/procesos-revision/{{flujoProceso1Id}}/evaluaciones",
+            "description": "CU-11: el primer revisor evalúa; aún no hay dictamen (INV-19).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"criterios\": [\n    {\n      \"criterio\": \"PEDAGOGICO\",\n      \"valoracion\": 4\n    },\n    {\n      \"criterio\": \"TECNICO\",\n      \"valoracion\": 5\n    },\n    {\n      \"criterio\": \"ESTRUCTURAL\",\n      \"valoracion\": 4\n    }\n  ],\n  \"observaciones\": [\n    \"Bien construida\"\n  ],\n  \"decision\": \"APROBATORIA\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+                  "pm.test(\"Sin dictamen mientras falte una evaluación\", () => {",
+                  "    pm.expect(pm.response.json().dictamen).to.be.null;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.15 · Paso 2 · Evaluación aprobatoria revisor 2 1",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idRevisor2}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "REVISOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{urlEditorial}}/procesos-revision/{{flujoProceso1Id}}/evaluaciones",
+            "description": "CU-11 + CU-12: la última evaluación dispara el dictamen automático; 2 de 2 aprobatorias → APROBADA (INV-20).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"criterios\": [\n    {\n      \"criterio\": \"PEDAGOGICO\",\n      \"valoracion\": 4\n    },\n    {\n      \"criterio\": \"TECNICO\",\n      \"valoracion\": 5\n    },\n    {\n      \"criterio\": \"ESTRUCTURAL\",\n      \"valoracion\": 4\n    }\n  ],\n  \"observaciones\": [\n    \"Distractores plausibles\"\n  ],\n  \"decision\": \"APROBATORIA\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+                  "pm.test(\"Dictamen APROBADA con 100 %\", () => {",
+                  "    const p = pm.response.json();",
+                  "    pm.expect(p.estado).to.eql('CERRADO');",
+                  "    pm.expect(p.dictamen.resultado).to.eql('APROBADA');",
+                  "    pm.expect(Number(p.dictamen.porcentajeAprobacion)).to.eql(100);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.16 · Paso 2 · Publicar pregunta 1",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idAdministrador}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "ADMINISTRADOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{urlEditorial}}/preguntas/{{flujoPregunta1Id}}/publicacion",
+            "description": "CU-08: de APROBADA a PUBLICADA. Después del commit Editorial emite PreguntaPublicada en editorial.eventos (C3)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test(\"Estado PUBLICADA\", () => {",
+                  "    pm.expect(pm.response.json().estado).to.eql('PUBLICADA');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.21 · Paso 2 · Crear pregunta 2 (EN_CONSTRUCCION)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idAutor}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "AUTOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{urlEditorial}}/preguntas",
+            "description": "CU-04 (CONTRATOS 8.1). Pregunta completa: nace en BORRADOR y pasa a EN_CONSTRUCCION en la misma petición. Editorial valida la clasificación con Catálogo por gRPC (C2) antes de guardar.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contexto\": \"Un grupo de 5 estudiantes obtuvo las notas 3,0; 3,5; 4,0; 4,0 y 4,5.\",\n  \"preguntaDirecta\": \"¿Cuál es la moda del conjunto de notas? (2)\",\n  \"opciones\": [\n    {\n      \"letra\": \"A\",\n      \"texto\": \"3,0\",\n      \"esCorrecta\": false\n    },\n    {\n      \"letra\": \"B\",\n      \"texto\": \"3,8\",\n      \"esCorrecta\": false\n    },\n    {\n      \"letra\": \"C\",\n      \"texto\": \"4,0\",\n      \"esCorrecta\": true\n    },\n    {\n      \"letra\": \"D\",\n      \"texto\": \"4,5\",\n      \"esCorrecta\": false\n    }\n  ],\n  \"justificacion\": \"La moda es el valor que más se repite: 4,0 aparece dos veces.\",\n  \"bibliografia\": [\n    \"Walpole, R. Probabilidad y estadística. Pearson, 2012.\"\n  ],\n  \"clasificacion\": {\n    \"competenciaId\": \"{{flujoCompetenciaId}}\",\n    \"temaId\": \"{{flujoTemaId}}\",\n    \"subtemaId\": \"{{flujoSubtemaId}}\"\n  },\n  \"nivelDificultad\": \"BAJO\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+                  "pm.test(\"Location apunta a la pregunta\", () => {",
+                  "    pm.expect(pm.response.headers.get('Location')).to.include('/api/v1/preguntas/' + pm.response.json().preguntaId);",
+                  "});",
+                  "pm.test(\"Estado EN_CONSTRUCCION y sin errores de validación\", () => {",
+                  "    const p = pm.response.json();",
+                  "    pm.expect(p.estado).to.eql('EN_CONSTRUCCION');",
+                  "    pm.expect(p.erroresValidacion).to.be.an('array').that.is.empty;",
+                  "    pm.expect(p.clasificacion.subtemaId).to.eql(pm.variables.replaceIn('{{flujoSubtemaId}}'));",
+                  "});",
+                  "pm.collectionVariables.set('flujoPregunta2Id', pm.response.json().preguntaId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.22 · Paso 2 · Enviar a revisión 2",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idAutor}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "AUTOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{urlEditorial}}/preguntas/{{flujoPregunta2Id}}/envio-revision",
+            "description": "CU-07: de EN_CONSTRUCCION a PENDIENTE_REVISION (solo el autor)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test(\"Estado PENDIENTE_REVISION\", () => {",
+                  "    pm.expect(pm.response.json().estado).to.eql('PENDIENTE_REVISION');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.23 · Paso 2 · Asignar 2 revisores 2",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idAdministrador}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "ADMINISTRADOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{urlEditorial}}/preguntas/{{flujoPregunta2Id}}/procesos-revision",
+            "description": "CU-10 (D-14): abre el proceso de revisión y pasa la pregunta a EN_REVISION en una sola transacción (excepción 3.3.5).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"revisoresIds\": [\n    \"{{idRevisor1}}\",\n    \"{{idRevisor2}}\"\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+                  "pm.test(\"Proceso ABIERTO con 2 asignaciones\", () => {",
+                  "    const p = pm.response.json();",
+                  "    pm.expect(p.estado).to.eql('ABIERTO');",
+                  "    pm.expect(p.asignaciones).to.have.lengthOf(2);",
+                  "    pm.expect(p.dictamen).to.be.null;",
+                  "});",
+                  "pm.collectionVariables.set('flujoProceso2Id', pm.response.json().procesoId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.24 · Paso 2 · Evaluación aprobatoria revisor 1 2",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idRevisor1}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "REVISOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{urlEditorial}}/procesos-revision/{{flujoProceso2Id}}/evaluaciones",
+            "description": "CU-11: el primer revisor evalúa; aún no hay dictamen (INV-19).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"criterios\": [\n    {\n      \"criterio\": \"PEDAGOGICO\",\n      \"valoracion\": 4\n    },\n    {\n      \"criterio\": \"TECNICO\",\n      \"valoracion\": 5\n    },\n    {\n      \"criterio\": \"ESTRUCTURAL\",\n      \"valoracion\": 4\n    }\n  ],\n  \"observaciones\": [\n    \"Bien construida\"\n  ],\n  \"decision\": \"APROBATORIA\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+                  "pm.test(\"Sin dictamen mientras falte una evaluación\", () => {",
+                  "    pm.expect(pm.response.json().dictamen).to.be.null;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.25 · Paso 2 · Evaluación aprobatoria revisor 2 2",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idRevisor2}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "REVISOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{urlEditorial}}/procesos-revision/{{flujoProceso2Id}}/evaluaciones",
+            "description": "CU-11 + CU-12: la última evaluación dispara el dictamen automático; 2 de 2 aprobatorias → APROBADA (INV-20).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"criterios\": [\n    {\n      \"criterio\": \"PEDAGOGICO\",\n      \"valoracion\": 4\n    },\n    {\n      \"criterio\": \"TECNICO\",\n      \"valoracion\": 5\n    },\n    {\n      \"criterio\": \"ESTRUCTURAL\",\n      \"valoracion\": 4\n    }\n  ],\n  \"observaciones\": [\n    \"Distractores plausibles\"\n  ],\n  \"decision\": \"APROBATORIA\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+                  "pm.test(\"Dictamen APROBADA con 100 %\", () => {",
+                  "    const p = pm.response.json();",
+                  "    pm.expect(p.estado).to.eql('CERRADO');",
+                  "    pm.expect(p.dictamen.resultado).to.eql('APROBADA');",
+                  "    pm.expect(Number(p.dictamen.porcentajeAprobacion)).to.eql(100);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.26 · Paso 2 · Publicar pregunta 2",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idAdministrador}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "ADMINISTRADOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{urlEditorial}}/preguntas/{{flujoPregunta2Id}}/publicacion",
+            "description": "CU-08: de APROBADA a PUBLICADA. Después del commit Editorial emite PreguntaPublicada en editorial.eventos (C3)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test(\"Estado PUBLICADA\", () => {",
+                  "    pm.expect(pm.response.json().estado).to.eql('PUBLICADA');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.31 Esperar las 2 preguntas en Evaluación",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idDocente}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "DOCENTE"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{urlEvaluacion}}/preguntas-evaluables?competenciaId={{flujoCompetenciaId}}&tamano=100",
+            "description": "Paso 3 · PreguntaPublicada viaja por RabbitMQ (editorial.eventos → evaluacion.preguntas) y Evaluación guarda su copia local. Reintenta cada 500 ms hasta ~10 s."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const datos = pm.response.code === 200 ? pm.response.json() : { contenido: [] };",
+                  "const contenido = datos.contenido || [];",
+                  "const encontrado = (['flujoPregunta1Id', 'flujoPregunta2Id'].every(v => contenido.some(p => p.preguntaId === pm.collectionVariables.get(v) && p.estado === 'PUBLICADA')));",
+                  "const intentos = Number(pm.collectionVariables.get('esperaFlujo') || 0);",
+                  "if (!encontrado && intentos < 20) {",
+                  "    pm.collectionVariables.set('esperaFlujo', intentos + 1);",
+                  "    setTimeout(() => {}, 500);",
+                  "    postman.setNextRequest(pm.info.requestName);",
+                  "} else {",
+                  "    pm.collectionVariables.set('esperaFlujo', 0);",
+                  "    pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "    pm.test(\"Las 2 preguntas del flujo están PUBLICADA en Evaluación\", () => pm.expect(encontrado, 'tras ' + intentos + ' reintentos de 500 ms').to.be.true);",
+                  "    pm.test('Las copias locales nunca exponen letraCorrecta', () => contenido.forEach(p => pm.expect(p).to.not.have.property('letraCorrecta')));",
+                  "    pm.test('Copia local con la clasificación del flujo', () => contenido.forEach(p => pm.expect(p.clasificacion.subtemaId).to.eql(pm.collectionVariables.get('flujoSubtemaId'))));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.32 Definir simulacro de 2 preguntas",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idDocente}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "DOCENTE"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{urlEvaluacion}}/simulacros",
+            "description": "Paso 4 · CU-13: criterios con la competencia del flujo (solo sus 2 preguntas).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Simulacro del flujo {{$timestamp}}\",\n  \"criterios\": {\n    \"competenciaIds\": [\n      \"{{flujoCompetenciaId}}\"\n    ],\n    \"temaIds\": [],\n    \"subtemaIds\": [\n      \"{{flujoSubtemaId}}\"\n    ],\n    \"nivelesDificultad\": [\n      \"BAJO\"\n    ]\n  },\n  \"cantidadPreguntas\": 2,\n  \"duracionMaximaMinutos\": 30\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+                  "pm.test(\"Simulacro con las 2 preguntas del flujo\", () => {",
+                  "    const s = pm.response.json();",
+                  "    const ids = s.preguntas.map(p => p.preguntaId).sort();",
+                  "    pm.expect(ids).to.eql([pm.collectionVariables.get('flujoPregunta1Id'), pm.collectionVariables.get('flujoPregunta2Id')].sort());",
+                  "    pm.expect(s.preguntas.map(p => p.posicion).sort()).to.eql([1, 2]);",
+                  "});",
+                  "pm.collectionVariables.set('flujoSimulacroId', pm.response.json().simulacroId);",
+                  "pm.collectionVariables.set('simulacroId', pm.response.json().simulacroId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.33 Iniciar intento (ESTUDIANTE)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idEstudiante}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "ESTUDIANTE"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{urlEvaluacion}}/simulacros/{{flujoSimulacroId}}/intentos",
+            "description": "Paso 5 · CU-14: el estudiante inicia el intento."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+                  "pm.test(\"EN_CURSO con 2 preguntas\", () => {",
+                  "    const i = pm.response.json();",
+                  "    pm.expect(i.estado).to.eql('EN_CURSO');",
+                  "    pm.expect(i.preguntas).to.have.lengthOf(2);",
+                  "});",
+                  "pm.collectionVariables.set('flujoIntentoId', pm.response.json().intentoId);",
+                  "pm.collectionVariables.set('intentoId', pm.response.json().intentoId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.34 Responder bien la pregunta 1",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idEstudiante}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "ESTUDIANTE"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{urlEvaluacion}}/intentos/{{flujoIntentoId}}/respuestas/{{flujoPregunta1Id}}",
+            "description": "Paso 5 · La respuesta correcta de ambas preguntas es C.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"letraSeleccionada\": \"C\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test(\"Respuesta registrada\", () => {",
+                  "    const r = pm.response.json().respuestas.find(x => x.preguntaId === pm.collectionVariables.get('flujoPregunta1Id'));",
+                  "    pm.expect(r.letraSeleccionada).to.eql('C');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.35 Responder mal la pregunta 2",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idEstudiante}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "ESTUDIANTE"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{urlEvaluacion}}/intentos/{{flujoIntentoId}}/respuestas/{{flujoPregunta2Id}}",
+            "description": "Paso 5 · Se elige A, que es un distractor.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"letraSeleccionada\": \"A\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test(\"Dos respuestas registradas\", () => {",
+                  "    pm.expect(pm.response.json().respuestas).to.have.lengthOf(2);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.36 Finalizar intento → CALIFICADO 50",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idEstudiante}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "ESTUDIANTE"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{urlEvaluacion}}/intentos/{{flujoIntentoId}}/finalizacion",
+            "description": "Paso 5 · CU-14 + CU-15: finalizar y calificar en el mismo caso de uso; 1 de 2 correctas → puntaje 50 (emite IntentoDeSimulacroCalificado)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test(\"CALIFICADO con puntaje 50 y desglose por competencia\", () => {",
+                  "    const i = pm.response.json();",
+                  "    pm.expect(i.estado).to.eql('CALIFICADO');",
+                  "    pm.expect(i.finalizadoPor).to.eql('ESTUDIANTE');",
+                  "    pm.expect(i.calificacion.totalPreguntas).to.eql(2);",
+                  "    pm.expect(i.calificacion.correctas).to.eql(1);",
+                  "    pm.expect(Number(i.calificacion.puntaje)).to.eql(50);",
+                  "    pm.expect(i.calificacion.desglosePorCompetencia[0].competenciaId).to.eql(pm.collectionVariables.get('flujoCompetenciaId'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.37 Archivar pregunta 1 en Editorial",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idAdministrador}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "ADMINISTRADOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{urlEditorial}}/preguntas/{{flujoPregunta1Id}}/archivado",
+            "description": "Paso 6 · CU-09: de PUBLICADA a ARCHIVADA (sin borrarla, INV-12). Emite PreguntaArchivada con el motivo (7.5).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"motivo\": \"Contenido desactualizado (flujo Postman)\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test(\"ARCHIVADA\", () => {",
+                  "    pm.expect(pm.response.json().estado).to.eql('ARCHIVADA');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.38 Esperar la pregunta ARCHIVADA en Evaluación",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idDocente}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "DOCENTE"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{urlEvaluacion}}/preguntas-evaluables?competenciaId={{flujoCompetenciaId}}&estado=ARCHIVADA&tamano=100",
+            "description": "Paso 6 · PreguntaArchivada llega por RabbitMQ y la copia local queda ARCHIVADA con su motivo. Reintenta hasta ~10 s."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const datos = pm.response.code === 200 ? pm.response.json() : { contenido: [] };",
+                  "const contenido = datos.contenido || [];",
+                  "const encontrado = (contenido.some(p => p.preguntaId === pm.collectionVariables.get('flujoPregunta1Id') && p.estado === 'ARCHIVADA'));",
+                  "const intentos = Number(pm.collectionVariables.get('esperaArchivo') || 0);",
+                  "if (!encontrado && intentos < 20) {",
+                  "    pm.collectionVariables.set('esperaArchivo', intentos + 1);",
+                  "    setTimeout(() => {}, 500);",
+                  "    postman.setNextRequest(pm.info.requestName);",
+                  "} else {",
+                  "    pm.collectionVariables.set('esperaArchivo', 0);",
+                  "    pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "    pm.test(\"La pregunta 1 está ARCHIVADA en Evaluación\", () => pm.expect(encontrado, 'tras ' + intentos + ' reintentos de 500 ms').to.be.true);",
+                  "    pm.test('Las copias locales nunca exponen letraCorrecta', () => contenido.forEach(p => pm.expect(p).to.not.have.property('letraCorrecta')));",
+                  "    pm.test('Motivo y fecha de archivo', () => { const p = contenido.find(x => x.preguntaId === pm.collectionVariables.get('flujoPregunta1Id')); pm.expect(p.motivoArchivo).to.eql('Contenido desactualizado (flujo Postman)'); pm.expect(p.fechaArchivado).to.match(/Z$/); });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.39 Simulacro nuevo con los mismos criterios → 422",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idDocente}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "DOCENTE"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{urlEvaluacion}}/simulacros",
+            "description": "Paso 6 · Solo queda 1 pregunta PUBLICADA en la competencia del flujo (INV-25, INV-26) → 422 PREGUNTAS_INSUFICIENTES.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Simulacro tras archivar {{$timestamp}}\",\n  \"criterios\": {\n    \"competenciaIds\": [\n      \"{{flujoCompetenciaId}}\"\n    ],\n    \"temaIds\": [],\n    \"subtemaIds\": [\n      \"{{flujoSubtemaId}}\"\n    ],\n    \"nivelesDificultad\": [\n      \"BAJO\"\n    ]\n  },\n  \"cantidadPreguntas\": 2,\n  \"duracionMaximaMinutos\": 30\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 422', () => pm.response.to.have.status(422));",
+                  "pm.test('problem+json con codigo PREGUNTAS_INSUFICIENTES', () => {",
+                  "    pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');",
+                  "    const cuerpo = pm.response.json();",
+                  "    pm.expect(cuerpo.codigo).to.eql('PREGUNTAS_INSUFICIENTES');",
+                  "    pm.expect(cuerpo.status).to.eql(422);",
+                  "    pm.expect(cuerpo).to.have.property('idCorrelacion');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04.40 Trazabilidad de la pregunta archivada",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idAdministrador}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "ADMINISTRADOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{urlEditorial}}/preguntas/{{flujoPregunta1Id}}/trazabilidad",
+            "description": "Paso 7 · CU-18 (ADMINISTRADOR): registros en orden cronológico hasta ARCHIVADA e historial de revisión (D-15)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test(\"Ciclo de vida completo en orden\", () => {",
+                  "    const t = pm.response.json();",
+                  "    pm.expect(t.registros.map(r => r.estadoNuevo)).to.eql(['BORRADOR', 'EN_CONSTRUCCION', 'PENDIENTE_REVISION', 'EN_REVISION', 'APROBADA', 'PUBLICADA', 'ARCHIVADA']);",
+                  "    const fechas = t.registros.map(r => r.fecha);",
+                  "    pm.expect(fechas).to.eql([...fechas].sort());",
+                  "});",
+                  "pm.test(\"Historial: 2 evaluaciones y el dictamen APROBADA\", () => {",
+                  "    const h = pm.response.json().historialRevisiones;",
+                  "    pm.expect(h.map(e => e.tipo)).to.eql(['EVALUACION', 'EVALUACION', 'DICTAMEN']);",
+                  "    pm.expect(h[2].dictamen.resultado).to.eql('APROBADA');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "05 Flujo de rechazo",
+      "description": "D-07 y D-15: una pregunta con 1 evaluación aprobatoria y 1 reprobatoria recibe dictamen RECHAZADA (50 % no supera el 70 %, INV-20), vuelve sola a EN_CONSTRUCCION, se puede modificar de nuevo y su historial conserva el proceso anterior.",
+      "item": [
+        {
+          "name": "05.01 Crear pregunta",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idAutor}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "AUTOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{urlEditorial}}/preguntas",
+            "description": "CU-04 con la clasificación semilla.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contexto\": \"Un grupo de 5 estudiantes obtuvo las notas 3,0; 3,5; 4,0; 4,0 y 4,5.\",\n  \"preguntaDirecta\": \"¿Qué medida de tendencia central es 4,0?\",\n  \"opciones\": [\n    {\n      \"letra\": \"A\",\n      \"texto\": \"3,0\",\n      \"esCorrecta\": false\n    },\n    {\n      \"letra\": \"B\",\n      \"texto\": \"3,8\",\n      \"esCorrecta\": false\n    },\n    {\n      \"letra\": \"C\",\n      \"texto\": \"4,0\",\n      \"esCorrecta\": true\n    },\n    {\n      \"letra\": \"D\",\n      \"texto\": \"4,5\",\n      \"esCorrecta\": false\n    }\n  ],\n  \"justificacion\": \"La moda es el valor que más se repite: 4,0 aparece dos veces.\",\n  \"bibliografia\": [\n    \"Walpole, R. Probabilidad y estadística. Pearson, 2012.\"\n  ],\n  \"clasificacion\": {\n    \"competenciaId\": \"22222222-2222-4222-8222-000000000101\",\n    \"temaId\": \"22222222-2222-4222-8222-000000000201\",\n    \"subtemaId\": \"22222222-2222-4222-8222-000000000301\"\n  },\n  \"nivelDificultad\": \"BAJO\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('rechazoPreguntaId', pm.response.json().preguntaId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "05.02 Enviar a revisión",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idAutor}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "AUTOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{urlEditorial}}/preguntas/{{rechazoPreguntaId}}/envio-revision",
+            "description": "CU-07."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "05.03 Asignar 2 revisores",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idAdministrador}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "ADMINISTRADOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{urlEditorial}}/preguntas/{{rechazoPreguntaId}}/procesos-revision",
+            "description": "CU-10.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"revisoresIds\": [\n    \"{{idRevisor1}}\",\n    \"{{idRevisor2}}\"\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('rechazoProcesoId', pm.response.json().procesoId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "05.04 Evaluación aprobatoria",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idRevisor1}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "REVISOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{urlEditorial}}/procesos-revision/{{rechazoProcesoId}}/evaluaciones",
+            "description": "CU-11: revisor 1 aprueba.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"criterios\": [\n    {\n      \"criterio\": \"PEDAGOGICO\",\n      \"valoracion\": 4\n    },\n    {\n      \"criterio\": \"TECNICO\",\n      \"valoracion\": 5\n    },\n    {\n      \"criterio\": \"ESTRUCTURAL\",\n      \"valoracion\": 4\n    }\n  ],\n  \"observaciones\": [\n    \"Correcta\"\n  ],\n  \"decision\": \"APROBATORIA\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "05.05 Evaluación reprobatoria → dictamen RECHAZADA",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idRevisor2}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "REVISOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{urlEditorial}}/procesos-revision/{{rechazoProcesoId}}/evaluaciones",
+            "description": "CU-12: 1 de 2 aprobatorias = 50 % → RECHAZADA (INV-20, D-05).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"criterios\": [\n    {\n      \"criterio\": \"PEDAGOGICO\",\n      \"valoracion\": 4\n    },\n    {\n      \"criterio\": \"TECNICO\",\n      \"valoracion\": 5\n    },\n    {\n      \"criterio\": \"ESTRUCTURAL\",\n      \"valoracion\": 4\n    }\n  ],\n  \"observaciones\": [\n    \"El distractor B es poco plausible\"\n  ],\n  \"decision\": \"REPROBATORIA\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+                  "pm.test(\"Dictamen RECHAZADA con 50 %\", () => {",
+                  "    const p = pm.response.json();",
+                  "    pm.expect(p.estado).to.eql('CERRADO');",
+                  "    pm.expect(p.dictamen.resultado).to.eql('RECHAZADA');",
+                  "    pm.expect(Number(p.dictamen.porcentajeAprobacion)).to.eql(50);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "05.06 La pregunta vuelve a EN_CONSTRUCCION",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idAutor}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "AUTOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{urlEditorial}}/preguntas/{{rechazoPreguntaId}}",
+            "description": "D-07: RECHAZADA es transitorio; la pregunta queda EN_CONSTRUCCION."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test(\"EN_CONSTRUCCION\", () => {",
+                  "    pm.expect(pm.response.json().estado).to.eql('EN_CONSTRUCCION');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "05.07 Modificar de nuevo",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idAutor}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "AUTOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{urlEditorial}}/preguntas/{{rechazoPreguntaId}}",
+            "description": "CU-05: tras el rechazo la pregunta vuelve a ser editable (INV-10).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contexto\": \"Un grupo de 5 estudiantes obtuvo las notas 3,0; 3,5; 4,0; 4,0 y 4,5.\",\n  \"preguntaDirecta\": \"¿Qué valor es la moda del conjunto de notas?\",\n  \"opciones\": [\n    {\n      \"letra\": \"A\",\n      \"texto\": \"3,0\",\n      \"esCorrecta\": false\n    },\n    {\n      \"letra\": \"B\",\n      \"texto\": \"3,8\",\n      \"esCorrecta\": false\n    },\n    {\n      \"letra\": \"C\",\n      \"texto\": \"4,0\",\n      \"esCorrecta\": true\n    },\n    {\n      \"letra\": \"D\",\n      \"texto\": \"4,5\",\n      \"esCorrecta\": false\n    }\n  ],\n  \"justificacion\": \"La moda es el valor que más se repite: 4,0 aparece dos veces.\",\n  \"bibliografia\": [\n    \"Walpole, R. Probabilidad y estadística. Pearson, 2012.\"\n  ],\n  \"clasificacion\": {\n    \"competenciaId\": \"22222222-2222-4222-8222-000000000101\",\n    \"temaId\": \"22222222-2222-4222-8222-000000000201\",\n    \"subtemaId\": \"22222222-2222-4222-8222-000000000301\"\n  },\n  \"nivelDificultad\": \"BAJO\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test(\"Modificada y EN_CONSTRUCCION\", () => {",
+                  "    const p = pm.response.json();",
+                  "    pm.expect(p.preguntaDirecta).to.eql('¿Qué valor es la moda del conjunto de notas?');",
+                  "    pm.expect(p.estado).to.eql('EN_CONSTRUCCION');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "05.08 Trazabilidad: el historial conserva el proceso anterior",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idAdministrador}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "ADMINISTRADOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{urlEditorial}}/preguntas/{{rechazoPreguntaId}}/trazabilidad",
+            "description": "CU-18 y D-15: el rechazo queda registrado (EN_REVISION → RECHAZADA → EN_CONSTRUCCION) y el historial guarda las 2 evaluaciones y el dictamen del proceso."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test(\"Registros con el rechazo automático\", () => {",
+                  "    const estados = pm.response.json().registros.map(r => r.estadoNuevo);",
+                  "    pm.expect(estados.slice(-3)).to.eql(['RECHAZADA', 'EN_CONSTRUCCION', 'EN_CONSTRUCCION']);",
+                  "});",
+                  "pm.test(\"Historial del proceso rechazado\", () => {",
+                  "    const h = pm.response.json().historialRevisiones;",
+                  "    pm.expect(h.map(e => e.tipo)).to.eql(['EVALUACION', 'EVALUACION', 'DICTAMEN']);",
+                  "    h.forEach(e => pm.expect(e.procesoId).to.eql(pm.collectionVariables.get('rechazoProcesoId')));",
+                  "    pm.expect(h[2].dictamen.resultado).to.eql('RECHAZADA');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "06 Casos comunes",
+      "description": "Reglas transversales de CONTRATOS 4, 4.1 y 5.3 que comparten los tres servicios. Cada caso va contra un solo servicio.",
+      "item": [
+        {
+          "name": "06.01 X-Roles vacío → 401 (Catálogo)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idDocente}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": ""
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{urlCatalogo}}/competencias",
+            "description": "CONTRATOS 4.1 (v1.9): X-Roles vacío → 401 NO_AUTENTICADO."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 401', () => pm.response.to.have.status(401));",
+                  "pm.test('problem+json con codigo NO_AUTENTICADO', () => {",
+                  "    pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');",
+                  "    const cuerpo = pm.response.json();",
+                  "    pm.expect(cuerpo.codigo).to.eql('NO_AUTENTICADO');",
+                  "    pm.expect(cuerpo.status).to.eql(401);",
+                  "    pm.expect(cuerpo).to.have.property('idCorrelacion');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "06.02 Rol desconocido → 400 (Evaluación)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idDocente}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "COORDINADOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{urlEvaluacion}}/simulacros",
+            "description": "CONTRATOS 4.1 (v1.9): un rol que no es uno de los cinco válidos → 400 SOLICITUD_INVALIDA."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+                  "pm.test('problem+json con codigo SOLICITUD_INVALIDA', () => {",
+                  "    pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');",
+                  "    const cuerpo = pm.response.json();",
+                  "    pm.expect(cuerpo.codigo).to.eql('SOLICITUD_INVALIDA');",
+                  "    pm.expect(cuerpo.status).to.eql(400);",
+                  "    pm.expect(cuerpo).to.have.property('idCorrelacion');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "06.03 UUID en mayúsculas aceptado (Editorial)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idAdministrador}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "ADMINISTRADOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{urlEditorial}}/preguntas/{{preguntaIdMayusculas}}",
+            "description": "CONTRATOS 4 (v1.9): un UUID en mayúsculas se acepta y se normaliza a minúsculas."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('preguntaIdMayusculas', String(pm.collectionVariables.get('editorialPreguntaId')).toUpperCase());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test(\"La respuesta trae el id en minúsculas\", () => {",
+                  "    pm.expect(pm.response.json().preguntaId).to.eql(pm.collectionVariables.get('editorialPreguntaId'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "06.04 UUID con llaves → 400 (Catálogo)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idDocente}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "DOCENTE"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{urlCatalogo}}/competencias/%7B22222222-2222-4222-8222-000000000101%7D",
+            "description": "CONTRATOS 4 (v1.9): llaves, urn:uuid: o sin guiones → 400 SOLICITUD_INVALIDA."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+                  "pm.test('problem+json con codigo SOLICITUD_INVALIDA', () => {",
+                  "    pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');",
+                  "    const cuerpo = pm.response.json();",
+                  "    pm.expect(cuerpo.codigo).to.eql('SOLICITUD_INVALIDA');",
+                  "    pm.expect(cuerpo.status).to.eql(400);",
+                  "    pm.expect(cuerpo).to.have.property('idCorrelacion');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "06.05 JSON ilegible → 400 (Evaluación)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idDocente}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "DOCENTE"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{urlEvaluacion}}/simulacros",
+            "description": "CONTRATOS 5.3: JSON inválido → 400 SOLICITUD_INVALIDA.",
+            "body": {
+              "mode": "raw",
+              "raw": "{ esto no es json"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+                  "pm.test('problem+json con codigo SOLICITUD_INVALIDA', () => {",
+                  "    pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');",
+                  "    const cuerpo = pm.response.json();",
+                  "    pm.expect(cuerpo.codigo).to.eql('SOLICITUD_INVALIDA');",
+                  "    pm.expect(cuerpo.status).to.eql(400);",
+                  "    pm.expect(cuerpo).to.have.property('idCorrelacion');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "06.06 Método no permitido → 405 (Catálogo)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idAdministrador}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "ADMINISTRADOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{urlCatalogo}}/competencias/22222222-2222-4222-8222-000000000101",
+            "description": "CONTRATOS 5.3 (v1.10): no existe DELETE (D-13, RNF-16) → 405 METODO_NO_PERMITIDO."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 405', () => pm.response.to.have.status(405));",
+                  "pm.test('problem+json con codigo METODO_NO_PERMITIDO', () => {",
+                  "    pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');",
+                  "    const cuerpo = pm.response.json();",
+                  "    pm.expect(cuerpo.codigo).to.eql('METODO_NO_PERMITIDO');",
+                  "    pm.expect(cuerpo.status).to.eql(405);",
+                  "    pm.expect(cuerpo).to.have.property('idCorrelacion');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "06.07 Tipo de contenido no soportado → 415 (Editorial)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idAutor}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "AUTOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "text/plain"
+              }
+            ],
+            "url": "{{urlEditorial}}/preguntas",
+            "description": "CONTRATOS 5.3 (v1.10): cuerpo en text/plain → 415 TIPO_DE_CONTENIDO_NO_SOPORTADO.",
+            "body": {
+              "mode": "raw",
+              "raw": "contexto en texto plano"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 415', () => pm.response.to.have.status(415));",
+                  "pm.test('problem+json con codigo TIPO_DE_CONTENIDO_NO_SOPORTADO', () => {",
+                  "    pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');",
+                  "    const cuerpo = pm.response.json();",
+                  "    pm.expect(cuerpo.codigo).to.eql('TIPO_DE_CONTENIDO_NO_SOPORTADO');",
+                  "    pm.expect(cuerpo.status).to.eql(415);",
+                  "    pm.expect(cuerpo).to.have.property('idCorrelacion');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "06.08 tamano=101 → 400 (Evaluación)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idDocente}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "DOCENTE"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{urlEvaluacion}}/simulacros?tamano=101",
+            "description": "CONTRATOS 5.1: tamano fuera de 1–100 → 400 SOLICITUD_INVALIDA (no se recorta)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+                  "pm.test('problem+json con codigo SOLICITUD_INVALIDA', () => {",
+                  "    pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');",
+                  "    const cuerpo = pm.response.json();",
+                  "    pm.expect(cuerpo.codigo).to.eql('SOLICITUD_INVALIDA');",
+                  "    pm.expect(cuerpo.status).to.eql(400);",
+                  "    pm.expect(cuerpo).to.have.property('idCorrelacion');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "06.09 X-Id-Correlacion inválido → se genera uno nuevo (Editorial)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Usuario-Id",
+                "value": "{{idAdministrador}}"
+              },
+              {
+                "key": "X-Roles",
+                "value": "ADMINISTRADOR"
+              },
+              {
+                "key": "X-Id-Correlacion",
+                "value": "no-es-un-uuid"
+              }
+            ],
+            "url": "{{urlEditorial}}/preguntas?tamano=1",
+            "description": "CONTRATOS 4.1 (v1.10): un X-Id-Correlacion inválido nunca es error; el servicio genera un UUID v4 nuevo y lo devuelve."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test(\"La respuesta trae un X-Id-Correlacion UUID v4 nuevo\", () => {",
+                  "    const nuevo = pm.response.headers.get('X-Id-Correlacion');",
+                  "    pm.expect(nuevo).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);",
+                  "    pm.expect(nuevo).to.not.eql('no-es-un-uuid');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "nombreCompetencia",
+      "value": ""
+    },
+    {
+      "key": "catalogoCompetenciaId",
+      "value": ""
+    },
+    {
+      "key": "catalogoTemaId",
+      "value": ""
+    },
+    {
+      "key": "catalogoSubtemaId",
+      "value": ""
+    },
+    {
+      "key": "editorialPreguntaId",
+      "value": ""
+    },
+    {
+      "key": "preguntaIdMayusculas",
+      "value": ""
+    },
+    {
+      "key": "evalPreguntaId",
+      "value": ""
+    },
+    {
+      "key": "evalProcesoId",
+      "value": ""
+    },
+    {
+      "key": "evalSimulacroId",
+      "value": ""
+    },
+    {
+      "key": "evalIntentoId",
+      "value": ""
+    },
+    {
+      "key": "flujoCompetenciaId",
+      "value": ""
+    },
+    {
+      "key": "flujoTemaId",
+      "value": ""
+    },
+    {
+      "key": "flujoSubtemaId",
+      "value": ""
+    },
+    {
+      "key": "flujoPregunta1Id",
+      "value": ""
+    },
+    {
+      "key": "flujoProceso1Id",
+      "value": ""
+    },
+    {
+      "key": "flujoPregunta2Id",
+      "value": ""
+    },
+    {
+      "key": "flujoProceso2Id",
+      "value": ""
+    },
+    {
+      "key": "flujoSimulacroId",
+      "value": ""
+    },
+    {
+      "key": "flujoIntentoId",
+      "value": ""
+    },
+    {
+      "key": "rechazoPreguntaId",
+      "value": ""
+    },
+    {
+      "key": "rechazoProcesoId",
+      "value": ""
+    },
+    {
+      "key": "preguntaId",
+      "value": ""
+    },
+    {
+      "key": "simulacroId",
+      "value": ""
+    },
+    {
+      "key": "intentoId",
+      "value": ""
+    },
+    {
+      "key": "esperaEvaluacion",
+      "value": ""
+    },
+    {
+      "key": "esperaFlujo",
+      "value": ""
+    },
+    {
+      "key": "esperaArchivo",
+      "value": ""
+    }
+  ]
+}

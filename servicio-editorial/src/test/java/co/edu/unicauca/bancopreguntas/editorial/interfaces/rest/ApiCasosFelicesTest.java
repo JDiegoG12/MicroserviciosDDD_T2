@@ -226,6 +226,15 @@ class ApiCasosFelicesTest extends PruebaDeApi {
     }
 
     @Test
+    @DisplayName("GET /docs → 200 con la página de Swagger UI (sin redirección) apuntando a /openapi.json")
+    void docs() throws Exception {
+        mvc.perform(get("/docs"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith("text/html"))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("url: \"/openapi.json\"")));
+    }
+
+    @Test
     @DisplayName("GET /salud → 200 sin encabezados de identidad")
     void salud() throws Exception {
         mvc.perform(get("/salud"))

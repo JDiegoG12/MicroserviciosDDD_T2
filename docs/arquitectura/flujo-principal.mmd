@@ -1,0 +1,53 @@
+%% Flujo principal de punta a punta (carpeta "04 Flujo completo" de la colección de Postman, CONTRATOS.md 10)
+sequenceDiagram
+  autonumber
+  actor PM as Postman
+  participant CA as servicio-catalogo
+  participant ED as servicio-editorial
+  participant MQ as RabbitMQ
+  participant EV as servicio-evaluacion
+
+  Note over PM,CA: Paso 1 · Catálogo
+  PM->>CA: GET /competencias/{…101} (siembra 4.3)
+  PM->>CA: POST competencia, tema y subtema del flujo (ADMINISTRADOR)
+  CA-->>PM: 201 CompetenciaRespuesta
+
+  Note over PM,ED: Paso 2 · por cada una de las 2 preguntas
+  PM->>ED: POST /preguntas (AUTOR)
+  ED->>CA: gRPC ValidarClasificacion + x-id-correlacion
+  CA-->>ED: valida = true
+  ED-->>PM: 201 EN_CONSTRUCCION
+  PM->>ED: POST /envio-revision (AUTOR) → PENDIENTE_REVISION
+  PM->>ED: POST /procesos-revision con 2 revisores (ADMINISTRADOR) → EN_REVISION
+  PM->>ED: POST /evaluaciones × 2 aprobatorias (REVISOR)
+  Note right of ED: dictamen automático APROBADA (100 %)
+  PM->>ED: POST /publicacion (ADMINISTRADOR)
+  ED-->>PM: 200 PUBLICADA
+  ED-)MQ: PreguntaPublicada (después del commit)
+  MQ-)EV: entrega en evaluacion.preguntas
+  EV->>EV: guarda la copia local PreguntaEvaluable
+
+  Note over PM,EV: Paso 3 y 4 · simulacro
+  PM->>EV: GET /preguntas-evaluables (reintenta hasta ~10 s)
+  PM->>EV: POST /simulacros con 2 preguntas (DOCENTE)
+  EV-->>PM: 201 SimulacroRespuesta
+
+  Note over PM,EV: Paso 5 · intento
+  PM->>EV: POST /simulacros/{id}/intentos (ESTUDIANTE) → EN_CURSO
+  PM->>EV: PUT respuesta correcta (C) y respuesta incorrecta (A)
+  PM->>EV: POST /intentos/{id}/finalizacion
+  EV-->>PM: 200 CALIFICADO · puntaje 50
+  EV-)MQ: IntentoDeSimulacroCalificado (evaluacion.eventos)
+
+  Note over PM,EV: Paso 6 · archivado propagado
+  PM->>ED: POST /preguntas/{p1}/archivado con motivo (ADMINISTRADOR)
+  ED-->>PM: 200 ARCHIVADA
+  ED-)MQ: PreguntaArchivada
+  MQ-)EV: entrega en evaluacion.preguntas
+  PM->>EV: GET /preguntas-evaluables?estado=ARCHIVADA (reintenta)
+  PM->>EV: POST /simulacros con 2 preguntas
+  EV-->>PM: 422 PREGUNTAS_INSUFICIENTES
+
+  Note over PM,ED: Paso 7 · trazabilidad
+  PM->>ED: GET /preguntas/{p1}/trazabilidad (ADMINISTRADOR)
+  ED-->>PM: 200 BORRADOR → … → PUBLICADA → ARCHIVADA + historial de revisión

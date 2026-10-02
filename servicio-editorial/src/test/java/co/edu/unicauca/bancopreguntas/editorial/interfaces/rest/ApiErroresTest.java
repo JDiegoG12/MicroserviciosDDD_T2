@@ -98,7 +98,9 @@ class ApiErroresTest extends PruebaDeApi {
     void solicitudesMalFormadas() throws Exception {
         mvc.perform(post("/api/v1/preguntas").headers(identidad(AUTOR, "AUTOR")).contentType("application/json").content("{ no es json"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.codigo").value("SOLICITUD_INVALIDA"));
+                .andExpect(jsonPath("$.codigo").value("SOLICITUD_INVALIDA"))
+                .andExpect(jsonPath("$.errores[0].campo").value("cuerpo"))
+                .andExpect(jsonPath("$.errores[0].mensaje").value("El cuerpo de la solicitud no es un JSON válido"));
         mvc.perform(post("/api/v1/preguntas/" + PREGUNTA_ID + "/archivado").headers(identidad(ADMINISTRADOR, "ADMINISTRADOR"))
                         .contentType("application/json"))
                 .andExpect(status().isBadRequest())

@@ -1,0 +1,57 @@
+%% Diagrama de contenedores (estilo C4) · Banco de Preguntas Saber Pro · Taller 2
+%% Fuente: CONTRATOS.md secciones 1, 6 y 7. Exportar: ver docs/arquitectura/README.md.
+flowchart LR
+  PM(["Postman / Newman<br/>(cliente de pruebas)"])
+
+  subgraph SIS["Banco de Preguntas Saber Pro · red Docker red-banco-preguntas"]
+    direction LR
+
+    subgraph EDG["Gestión Editorial de Preguntas"]
+      ED["<b>servicio-editorial</b><br/>Java 21 · Spring Boot 4.1.1<br/>REST :8081<br/><i>interfaces → aplicación → dominio ← infraestructura</i>"]
+      DB1[("bd-editorial<br/>PostgreSQL 16 · :5433")]
+    end
+
+    subgraph CAG["Catálogo Académico"]
+      CA["<b>servicio-catalogo</b><br/>Python 3.12 · FastAPI · grpc.aio<br/>REST :8082 · gRPC :50051<br/><i>interfaces → aplicación → dominio ← infraestructura</i>"]
+      DB2[("bd-catalogo<br/>PostgreSQL 16 · :5434")]
+    end
+
+    subgraph EVG["Evaluación y Simulacros"]
+      EV["<b>servicio-evaluacion</b><br/>TypeScript · Node 24 · NestJS 11<br/>REST :8083<br/><i>interfaces → aplicación → dominio ← infraestructura</i>"]
+      DB3[("bd-evaluacion<br/>MongoDB 7 · :27017")]
+    end
+
+    subgraph MQ["RabbitMQ 3.13 · AMQP :5672 · consola :15672"]
+      direction TB
+      EX1{{"exchange editorial.eventos<br/>topic · durable"}}
+      Q1[["cola evaluacion.preguntas<br/>durable · DLX evaluacion.dlx"]]
+      DLX{{"exchange evaluacion.dlx<br/>fanout"}}
+      DLQ[["cola evaluacion.preguntas.dlq"]]
+      EX2{{"exchange evaluacion.eventos<br/>topic · durable"}}
+    end
+  end
+
+  PM -- "C1 · REST JSON /api/v1<br/>X-Usuario-Id · X-Roles · X-Id-Correlacion" --> ED
+  PM -- "C1 · REST /api/v1" --> CA
+  PM -- "C1 · REST /api/v1" --> EV
+
+  ED == "C2 · gRPC síncrono (deadline 2 s)<br/>CatalogoAcademico.ValidarClasificacion" ==> CA
+
+  ED -- "C3 · PreguntaPublicada (pregunta.publicada)<br/>PreguntaArchivada (pregunta.archivada)" --> EX1
+  EX1 -- "bindings pregunta.*" --> Q1
+  Q1 -- "consume (ack manual, idempotente)" --> EV
+  Q1 -. "mensaje inválido (nack)" .-> DLX --> DLQ
+  EV -- "C4 · IntentoDeSimulacroCalificado<br/>(intento.calificado, sin consumidor)" --> EX2
+
+  ED --- DB1
+  CA --- DB2
+  EV --- DB3
+
+  classDef servicio fill:#1f6feb,stroke:#0b3d91,color:#ffffff
+  classDef bd fill:#e7f0ff,stroke:#1f6feb,color:#0b1f44
+  classDef broker fill:#fff4e5,stroke:#d97706,color:#3b2200
+  classDef externo fill:#f3f4f6,stroke:#6b7280,color:#111827
+  class ED,CA,EV servicio
+  class DB1,DB2,DB3 bd
+  class EX1,Q1,DLX,DLQ,EX2 broker
+  class PM externo
