@@ -3,7 +3,7 @@
 ## Qué es este servicio
 - **Contexto (Taller 1):** Evaluación y Simulacros.
 - **Dueño:** P2.
-- **Tecnología:** TypeScript · Node 20 · NestJS 10 · MongoDB 7 (`bd-evaluacion`).
+- **Tecnología:** TypeScript · Node 24 (v24.20.0) · NestJS 11 · MongoDB 7 (`bd-evaluacion`).
 - **Puerto:** REST `8083` (`http://localhost:8083/api/v1`). Swagger en `/docs`, salud en `/salud`.
 - **Produce:** REST de la sección 8.3 y el evento `IntentoDeSimulacroCalificado` (7.6).
 - **Consume:** eventos `PreguntaPublicada` y `PreguntaArchivada` de la cola `evaluacion.preguntas` (sección 7).
@@ -26,8 +26,8 @@ Ese documento es la fuente única de verdad: si algo de este archivo choca con �
 
 ```
 servicio-evaluacion/
-├── Dockerfile                ← fase 1 (P2)
-├── package.json              ← fase 1 (P2)
+├── Dockerfile                ← etapa 2 (P2)
+├── package.json              ← etapa 1 (P2), dependencias de etapa 2 agregadas
 └── src/
     ├── dominio/              ← agregados Simulacro e IntentoDeSimulacro, PreguntaEvaluable,
     │                           servicios de dominio, interfaces de repositorio, excepciones
