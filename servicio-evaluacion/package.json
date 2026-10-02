@@ -1,0 +1,80 @@
+{
+  "name": "servicio-evaluacion",
+  "version": "0.1.0",
+  "description": "Microservicio de Evaluacion y Simulacros (Banco de Preguntas Saber Pro, Taller 2)",
+  "private": true,
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=24.20.0 <25"
+  },
+  "scripts": {
+    "build": "nest build",
+    "start": "node dist/main.js",
+    "start:dev": "nest start --watch",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:cov": "jest --coverage",
+    "test:unitarias": "jest test/dominio test/aplicacion",
+    "test:api": "jest test/api",
+    "test:integracion": "jest test/integracion"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.1.6",
+    "@nestjs/core": "^11.1.6",
+    "@nestjs/mongoose": "^12.0.0",
+    "@nestjs/platform-express": "^11.1.6",
+    "@nestjs/swagger": "^11.4.7",
+    "amqp-connection-manager": "^5.0.0",
+    "amqplib": "^2.2.0",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.15.1",
+    "mongoose": "8.24.4",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.8",
+    "@nestjs/schematics": "^11.0.5",
+    "@nestjs/testing": "^11.1.6",
+    "@types/amqplib": "^0.10.8",
+    "@types/express": "^5.0.6",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^24.6.0",
+    "@types/supertest": "^7.2.1",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "jest": "^29.7.0",
+    "supertest": "^7.3.0",
+    "testcontainers": "^12.2.0",
+    "ts-jest": "^29.4.4",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.3"
+  },
+  "jest": {
+    "rootDir": ".",
+    "roots": [
+      "<rootDir>/src",
+      "<rootDir>/test"
+    ],
+    "testRegex": ".*\\.spec\\.ts$",
+    "transform": {
+      "^.+\\.ts$": [
+        "ts-jest",
+        {
+          "tsconfig": "tsconfig.json"
+        }
+      ]
+    },
+    "testEnvironment": "node",
+    "moduleNameMapper": {
+      "^@nestjs/mongoose$": "<rootDir>/test/apoyo/nestjs-mongoose-shim.ts"
+    },
+    "collectCoverageFrom": [
+      "src/**/*.ts",
+      "!src/**/*.module.ts",
+      "!src/main.ts"
+    ],
+    "coverageDirectory": "coverage"
+  }
+}
