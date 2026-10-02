@@ -3,17 +3,19 @@
 > **Fuente única de verdad** para los tres microservicios. Si algo de este documento choca con el código, **manda este documento**.
 > Cambiar cualquier contrato de las secciones 5 a 8 se hace con un PR que modifique este archivo y la carpeta `/contratos` en el mismo commit, avisando al equipo. Basta la aprobación de **otro** integrante.
 >
-> **Versión 1.1** (2-oct-2026). Cambios respecto a la 1.0 en la sección 13.
+> **Versión 1.5** (2-oct-2026). Historial de cambios en la sección 13.
 
 ---
 
 ## 0. Cómo usar este documento (instrucciones para Claude Code)
 
 1. Lee **siempre** las secciones 1 a 10 (reglas comunes y contratos).
+1b. Lee **siempre** `/MODELO-DOMINIO.md`: la Parte A completa y, de la Parte B, las secciones que su tabla indica para tu servicio. Ahí están el texto exacto de las invariantes INV-xx, las decisiones D-xx y los casos de uso CU-xx del Taller 1. **No preguntes por el Taller 1: todo lo necesario está en ese archivo.**
 2. Lee **solo** la sección de tu servicio en la parte 11 (11.1 Editorial, 11.2 Catálogo, 11.3 Evaluación).
 3. **No** leas ni modifiques el código de otro servicio: todo lo que necesitas de él está aquí.
 4. **No** modifiques `/contratos` ni este archivo por iniciativa propia; si un contrato no alcanza, detente y repórtalo.
 5. Los nombres entre `comillas de código` son **exactos**: respeta mayúsculas, guiones y puntos tal cual.
+6. **Git es tarea exclusiva de las personas.** No ejecutes `git add`, `git commit`, `git push`, `git reset`, `git checkout`, `git switch`, `git merge`, `git rebase`, `git stash` ni ningún comando que cambie el estado del repositorio. Solo puedes usar los comandos de lectura (`git status`, `git diff`, `git log`). Al terminar, deja los cambios en el directorio de trabajo, sin agregarlos al área de preparación, y lista los archivos creados o modificados para que el integrante los revise y haga el commit.
 
 Cada servicio tendrá un `CLAUDE.md` propio con esta indicación: *"Lee /CONTRATOS.md (secciones 1–10 y la sección 11.x de este servicio) antes de escribir código."*
 
@@ -23,9 +25,9 @@ Cada servicio tendrá un `CLAUDE.md` propio con esta indicación: *"Lee /CONTRAT
 
 | Servicio | Contexto (Taller 1) | Tecnología | Base de datos | Dueño (GitHub) | REST | gRPC |
 |---|---|---|---|---|---|---|
-| `servicio-editorial` | Gestión Editorial de Preguntas | Java 21 · Spring Boot 3 | PostgreSQL 16 (`bd-editorial`) | P1 `@juanvec06` | 8081 | cliente |
+| `servicio-editorial` | Gestión Editorial de Preguntas | Java 21 · Spring Boot 4.1.1 | PostgreSQL 16 (`bd-editorial`) | P1 `@juanvec06` | 8081 | cliente |
 | `servicio-catalogo` | Catálogo Académico | Python 3.12 · FastAPI | PostgreSQL 16 (`bd-catalogo`) | P3 `@JuanDv1` | 8082 | servidor 50051 |
-| `servicio-evaluacion` | Evaluación y Simulacros | TypeScript · Node 20 · NestJS 10 | MongoDB 7 (`bd-evaluacion`) | P2 `@JDiegoG12` | 8083 | — |
+| `servicio-evaluacion` | Evaluación y Simulacros | TypeScript · Node 24 (v24.20.0) · NestJS 11 | MongoDB 7 (`bd-evaluacion`) | P2 `@JDiegoG12` | 8083 | — |
 | `rabbitmq` | Broker de mensajes | RabbitMQ 3.13 (management) | — | P3 (compose) | 15672 (consola) | — |
 
 ```mermaid
@@ -72,6 +74,7 @@ Ningún servicio lee la base de datos de otro. Ningún servicio llama por REST a
 ```
 /
 ├── CONTRATOS.md                  ← este archivo
+├── MODELO-DOMINIO.md             ← modelo del Taller 1 (invariantes, decisiones, CU) + ajustes del Taller 2
 ├── README.md                     ← cómo ejecutar y probar todo (P3)
 ├── docker-compose.yml            ← P3
 ├── .env.example                  ← variables por defecto (sin secretos reales)
@@ -166,6 +169,7 @@ Convenciones propias de cada lenguaje se respetan: Java y TS en `PascalCase`/`ca
 - Las pruebas de dominio no levantan base de datos, broker ni servidor.
 
 ### 3.6 Git
+- **Los commits y los push los hace cada integrante, nunca el agente** (ver regla 6 de la sección 0).
 - Ramas: `main` (siempre funcional) y `feature/<servicio>-<tema>` (ej. `feature/editorial-revision`).
 - Commits convencionales en español: `feat(editorial): agrega caso de uso de publicación`, `fix(catalogo): ...`, `docs(contratos): ...`.
 - Cada integrante solo modifica su carpeta. `/contratos`, `CONTRATOS.md`, `docker-compose.yml` y `/postman` se cambian por PR aprobado por **al menos otro integrante** (no se exige la aprobación de los tres).
@@ -181,7 +185,7 @@ Convenciones propias de cada lenguaje se respetan: Java y TS en `PascalCase`/`ca
 | Claves JSON | **camelCase** en REST y eventos (`preguntaId`, `competenciaId`, `fechaOcurrencia`). Python usa alias de Pydantic (`alias_generator=to_camel`, `populate_by_name=True`, respuestas `by_alias=True`). |
 | Campos del `.proto` | `snake_case` (guía de estilo de Protobuf). El código generado los expone como `getCompetenciaId()` en Java y `competencia_id` en Python. |
 | Enums | **MAYÚSCULAS_CON_GUION_BAJO, sin tildes**, serializados por nombre: `EN_CONSTRUCCION`, `ALTO`, `APROBATORIA`. |
-| Fechas | **ISO-8601 en UTC con `Z`**: `"2026-10-01T15:30:00Z"`. Nunca epoch numérico, nunca hora local. Contenedores con `TZ=UTC`. Jackson con `WRITE_DATES_AS_TIMESTAMPS=false`. |
+| Fechas | **ISO-8601 en UTC con `Z`**: `"2026-10-01T15:30:00Z"`. Nunca epoch numérico, nunca hora local. Contenedores con `TZ=UTC`. En Java, Jackson (la versión 3 que trae Spring Boot 4) debe serializar las fechas como texto ISO, no como números: verificarlo con una prueba. |
 | Duraciones | Enteros en minutos con el sufijo en el nombre: `duracionMaximaMinutos`. |
 | Puntajes | Número decimal de 0 a 100 con 2 decimales (`puntaje: 66.67`). |
 | Letras de opción | `"A"`, `"B"`, `"C"`, `"D"` (mayúscula, un carácter). |
@@ -728,7 +732,7 @@ sequenceDiagram
 
 ## 11. Secciones por servicio
 
-### 11.1 `servicio-editorial` (P1 · Java 21 · Spring Boot 3 · PostgreSQL)
+### 11.1 `servicio-editorial` (P1 · Java 21 · Spring Boot 4.1.1 · PostgreSQL)
 
 **Produce:** REST 8.1 · eventos `PreguntaPublicada` y `PreguntaArchivada` (7.4, 7.5).
 **Consume:** gRPC `CatalogoAcademico.ValidarClasificacion` (6).
@@ -792,7 +796,7 @@ Las reglas que fallan se devuelven en `erroresValidacion` (no son error HTTP). U
 
 **No hacer:** devolver nombres en la respuesta gRPC; ofrecer `DELETE`; mezclar los modelos SQLAlchemy con las entidades de dominio.
 
-### 11.3 `servicio-evaluacion` (P2 · Node 20 · NestJS 10 · MongoDB)
+### 11.3 `servicio-evaluacion` (P2 · Node 24 · NestJS 11 · MongoDB)
 
 **Produce:** REST 8.3 · evento `IntentoDeSimulacroCalificado` (7.6).
 **Consume:** eventos `PreguntaPublicada` y `PreguntaArchivada` de la cola `evaluacion.preguntas` (7).
@@ -852,3 +856,15 @@ stateDiagram-v2
 8. Los esquemas son estrictos para el productor y el consumidor es tolerante: un campo extra no envía el mensaje a la DLQ (7.7 y 7.8).
 9. Límites de texto en los esquemas, `desglosePorCompetencia` con al menos un elemento, `puntaje` entre 0 y 100, y reglas que garantiza el código del productor (7.6 y 7.8).
 10. `evaluacion.eventos` con `autoDelete=false` (7.1).
+
+### 1.2 (2-oct-2026)
+1. Claude Code no hace commits, push ni cambios de estado en Git. Solo usa comandos de lectura y deja los cambios sin preparar (sección 0, regla 6, y sección 3.6).
+
+### 1.3 (2-oct-2026)
+1. Evaluación usa **Node 24 (v24.20.0)** y NestJS 11, porque Node 20 dejó de tener soporte en abril de 2026. Java se mantiene en 21 (secciones 1 y 11.3). En el Dockerfile se usa la imagen `node:24` con la variante slim o alpine.
+
+### 1.4 (2-oct-2026)
+1. Editorial usa **Spring Boot 4.1.1** con Java 21 (secciones 1, 4 y 11.1). Spring Boot 4 trae Jackson 3 y starters más modulares. Las librerías de terceros (springdoc, gRPC) deben ser las versiones compatibles con Boot 4.
+
+### 1.5 (2-oct-2026)
+1. Se agrega `/MODELO-DOMINIO.md` con el modelo táctico del Taller 1 (texto literal de D-xx, INV-xx, servicios, eventos, repositorios y CU) y los ajustes del Taller 2. Es lectura obligatoria (sección 0, regla 1b).
