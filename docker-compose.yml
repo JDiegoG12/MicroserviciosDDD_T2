@@ -139,7 +139,7 @@ services:
   # Dentro de Docker los hosts son los nombres de servicio, nunca `localhost`.
   # ---------------------------------------------------------------------------
 
-  # Gestión Editorial de Preguntas · Java 21 · Spring Boot 3 · dueño P1.
+  # Gestión Editorial de Preguntas · Java 21 · Spring Boot 4.1.1 · dueño P1.
   # REST en 8081. Cliente gRPC del catálogo y productor de eventos en RabbitMQ.
   servicio-editorial:
     profiles: ["servicios"]
@@ -208,7 +208,7 @@ services:
     networks:
       - red-banco-preguntas
 
-  # Evaluación y Simulacros · TypeScript · Node 20 · NestJS 10 · dueño P2.
+  # Evaluación y Simulacros · TypeScript · Node 24 · NestJS 11 · dueño P2.
   # REST en 8083. Consume la cola evaluacion.preguntas y publica intento.calificado.
   servicio-evaluacion:
     profiles: ["servicios"]
