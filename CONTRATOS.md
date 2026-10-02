@@ -3,7 +3,7 @@
 > **Fuente única de verdad** para los tres microservicios. Si algo de este documento choca con el código, **manda este documento**.
 > Cambiar cualquier contrato de las secciones 5 a 8 se hace con un PR que modifique este archivo y la carpeta `/contratos` en el mismo commit, avisando al equipo. Basta la aprobación de **otro** integrante.
 >
-> **Versión 1.8** (2-oct-2026). Historial de cambios en la sección 13.
+> **Versión 1.11** (2-oct-2026). Historial de cambios en la sección 13.
 
 ---
 
@@ -181,7 +181,7 @@ Convenciones propias de cada lenguaje se respetan: Java y TS en `PascalCase`/`ca
 
 | Tema | Regla exacta |
 |---|---|
-| Identificadores | **UUID v4 en texto, minúsculas**, con guiones: `"3f2b6c1e-8a4d-4c2e-9b1a-1d2e3f4a5b6c"`. Los genera el servicio dueño del agregado. En Mongo el `_id` **es** el UUID en texto (nunca `ObjectId`). En PostgreSQL columnas tipo `uuid`. |
+| Identificadores | **UUID v4 en texto, minúsculas**, con guiones: `"3f2b6c1e-8a4d-4c2e-9b1a-1d2e3f4a5b6c"`. Los genera el servicio dueño del agregado. En Mongo el `_id` **es** el UUID en texto (nunca `ObjectId`). En PostgreSQL columnas tipo `uuid`. | **Entradas:** solo se acepta la forma canónica de 36 caracteres con guiones; si llega en mayúsculas se acepta y se normaliza a minúsculas. Cualquier otra forma (llaves, `urn:uuid:`, sin guiones) → 400. No se exige que sea de la versión 4. **Salidas:** siempre en minúsculas.
 | Claves JSON | **camelCase** en REST y eventos (`preguntaId`, `competenciaId`, `fechaOcurrencia`). Python usa alias de Pydantic (`alias_generator=to_camel`, `populate_by_name=True`, respuestas `by_alias=True`). |
 | Campos del `.proto` | `snake_case` (guía de estilo de Protobuf). El código generado los expone como `getCompetenciaId()` en Java y `competencia_id` en Python. |
 | Enums | **MAYÚSCULAS_CON_GUION_BAJO, sin tildes**, serializados por nombre: `EN_CONSTRUCCION`, `ALTO`, `APROBATORIA`. |
@@ -201,10 +201,10 @@ No hay servicio de identidad. Quien llama declara su identidad en encabezados HT
 |---|---|---|---|
 | `X-Usuario-Id` | Sí (excepto `/salud` y `/docs`) | UUID | `11111111-1111-4111-8111-000000000002` |
 | `X-Roles` | Sí | lista separada por comas, sin espacios significativos | `AUTOR,DOCENTE` |
-| `X-Id-Correlacion` | No | UUID; si no llega, el servicio lo genera | — |
+| `X-Id-Correlacion` | No | UUID; si no llega **o llega con un formato inválido**, el servicio genera uno nuevo (UUID v4) y, en el caso inválido, registra un aviso en el log. Nunca responde error por este encabezado. | — |
 
 Roles válidos (exactos): `ADMINISTRADOR`, `AUTOR`, `REVISOR`, `DOCENTE`, `ESTUDIANTE`.
-Falta `X-Usuario-Id` o `X-Roles` → **401** `NO_AUTENTICADO`. Rol insuficiente → **403** `ACCESO_DENEGADO`.
+Falta `X-Usuario-Id` o `X-Roles`, **o `X-Roles` llega vacío**, → **401** `NO_AUTENTICADO`. Un rol que no es uno de los cinco válidos → **400** `SOLICITUD_INVALIDA`. Rol insuficiente → **403** `ACCESO_DENEGADO`.
 `X-Id-Correlacion` se propaga a: metadatos gRPC `x-id-correlacion`, campo `idCorrelacion` del evento, y todas las líneas de log.
 
 ### 4.2 Usuarios de prueba (identificadores fijos)
@@ -273,11 +273,13 @@ Las pruebas de Editorial y Evaluación usan **estos** identificadores. Nadie má
 | 403 | Rol insuficiente o el usuario no es el dueño | `ACCESO_DENEGADO`, `REVISOR_NO_ASIGNADO` |
 | 404 | El recurso no existe | `PREGUNTA_NO_ENCONTRADA`, `PROCESO_REVISION_NO_ENCONTRADO`, `COMPETENCIA_NO_ENCONTRADA`, `TEMA_NO_ENCONTRADO`, `SUBTEMA_NO_ENCONTRADO`, `SIMULACRO_NO_ENCONTRADO`, `INTENTO_NO_ENCONTRADO` |
 | 409 | El **estado actual** no permite la operación o hay duplicado | `TRANSICION_NO_PERMITIDA`, `PREGUNTA_NO_EDITABLE`, `NOMBRE_DUPLICADO`, `INTENTO_FINALIZADO` |
+| 409 | Otra petición modificó el mismo agregado al mismo tiempo (bloqueo optimista); el cliente puede reintentar | `CONFLICTO_DE_CONCURRENCIA` |
 | 422 | Datos bien formados que **violan una regla de negocio o una invariante INV-xx** del Taller 1 | `CLASIFICACION_INVALIDA`, `REVISORES_INSUFICIENTES`, `PREGUNTAS_INSUFICIENTES`, `DURACION_INVALIDA` |
 
 **Regla para elegir entre 400 y 422:** si la restricción es una **invariante INV-xx** o una regla de negocio del Taller 1, es **422** (por ejemplo, la duración positiva de INV-28). Si es solo el formato o rango de un campo, sin invariante detrás, es **400**. Si depende del **estado actual** del recurso, es **409**.
 | 503 | Una dependencia externa no responde | `CATALOGO_NO_DISPONIBLE`, `BASE_DE_DATOS_NO_DISPONIBLE` (los tres servicios, si su base de datos no responde) |
 | 500 | Error inesperado (nunca exponer trazas) | `ERROR_INTERNO` |
+| 404 / 405 / 415 | Errores de protocolo del framework: ruta inexistente, método no permitido, tipo de contenido no soportado. Siempre en `application/problem+json` | `RECURSO_NO_ENCONTRADO` (404), `METODO_NO_PERMITIDO` (405), `TIPO_DE_CONTENIDO_NO_SOPORTADO` (415) |
 
 ---
 
@@ -337,6 +339,8 @@ enum MotivoRechazo {
 | Terna válida | `OK`, `valida=true`, `motivo=MOTIVO_RECHAZO_NINGUNO` | continúa el caso de uso |
 | Terna inválida | `OK`, `valida=false`, motivo según el orden del enum | HTTP **422** `CLASIFICACION_INVALIDA` con `detail = detalle` |
 | Algún id no es UUID | estado gRPC `INVALID_ARGUMENT` | HTTP **400** `SOLICITUD_INVALIDA` |
+| Catálogo vivo, pero su base de datos no responde o su esquema aún no está listo | estado gRPC `UNAVAILABLE` con mensaje en español | HTTP **503** `CATALOGO_NO_DISPONIBLE` |
+| Error inesperado en el servidor | estado gRPC `INTERNAL`, sin detalles internos | HTTP **503** `CATALOGO_NO_DISPONIBLE` |
 | Catálogo caído o tarda más de **2 s** (deadline del cliente) | — | HTTP **503** `CATALOGO_NO_DISPONIBLE`; la pregunta **no** se guarda |
 
 - La respuesta **no devuelve nombres** de competencias: los consumidores guardan solo identificadores (D-13).
@@ -617,9 +621,16 @@ Filtros de `GET /procesos-revision`:
 | `POST /competencias/{competenciaId}/temas/{temaId}/subtemas` | `ADMINISTRADOR` | 201 `CompetenciaRespuesta` | 404, 409 |
 | `PUT /competencias/{competenciaId}/temas/{temaId}/subtemas/{subtemaId}` | `ADMINISTRADOR` | 200 | 404 `SUBTEMA_NO_ENCONTRADO`, 409 |
 
-Cuerpo de creación o renombrado: `{ "nombre": "texto", "descripcion": "texto opcional" }`.
+Cuerpo de creación o renombrado: `{ "nombre": "texto", "descripcion": "texto opcional" }`. En el `PUT` de una competencia:
+- si `descripcion` **no viene** en el cuerpo, se **conserva** la actual;
+- si viene como `null` o `""`, se **borra**;
+- si viene con texto, se reemplaza.
+
+En Python se distingue con `model_fields_set` de Pydantic.
 **`CompetenciaRespuesta`**: `{ "competenciaId", "nombre", "descripcion", "temas": [ { "temaId", "nombre", "subtemas": [ { "subtemaId", "nombre" } ] } ] }`.
 Sin `DELETE`: borrar un elemento del catálogo dejaría preguntas con referencias rotas (D-13).
+
+`Location` en los `POST` de temas y subtemas: apunta a `/api/v1/competencias/{competenciaId}`, porque temas y subtemas no tienen un `GET` propio (son entidades internas del agregado) y la respuesta es la `CompetenciaRespuesta` completa.
 
 ### 8.3 `servicio-evaluacion` · `http://localhost:8083/api/v1`
 
@@ -726,6 +737,11 @@ Las credenciales viven en `.env` (no versionado) con los valores de `.env.exampl
 4. `EXPOSE` con los puertos internos de 9.1.
 5. Debe incluir `curl` (lo usa el healthcheck): `HEALTHCHECK` / compose ejecuta `curl -f http://localhost:<puerto>/salud`.
 6. El servicio arranca aunque sus dependencias no estén listas y reintenta conectarse (BD, RabbitMQ). El cliente gRPC de Editorial se conecta de forma perezosa (en la primera llamada). Mientras la base de datos no responde: `/salud` sigue en 200, porque indica que el proceso está vivo, y los endpoints que la necesitan responden **503** `BASE_DE_DATOS_NO_DISPONIBLE` en vez de 500.
+   **Esta regla manda sobre cualquier validación al arrancar.** Ningún servicio depende de la base de datos para iniciar:
+   - las migraciones (Flyway, Alembic) y la creación de índices se ejecutan en **segundo plano**, con reintentos, cuando la base de datos responde;
+   - la validación del esquema se comprueba en las **pruebas de integración**, no al arrancar;
+   - hasta que las migraciones terminan, los endpoints que usan la base de datos responden 503 `BASE_DE_DATOS_NO_DISPONIBLE`;
+   - `restart: unless-stopped` es solo una red de seguridad, no la solución.
 
 `docker-compose.yml` (P3) usa `depends_on` con `condition: service_healthy` para las bases de datos y RabbitMQ (`rabbitmq-diagnostics -q ping`).
 
@@ -838,7 +854,7 @@ Justificación para la sustentación:
 **Paquete raíz:** `catalogo` con `dominio`, `aplicacion`, `infraestructura` (SQLAlchemy, siembra de datos), `interfaces` (`rest` con routers FastAPI y `grpc` con el *servicer*). FastAPI (uvicorn) y el servidor `grpc.aio` corren en el **mismo proceso** con asyncio.
 
 **Agregado:** `Competencia` (raíz) con las entidades internas `Tema` y `Subtema`. Toda modificación de un tema o subtema se hace a través de la `Competencia` y se guarda como una unidad.
-**Invariantes:** INV-22 (identificador estable, independiente del nombre), INV-23 (sin huérfanos: todo `Tema` pertenece a una `Competencia` y todo `Subtema` a un `Tema`), INV-24 (nombre de competencia único en el catálogo; nombre de tema único dentro de su competencia; nombre de subtema único dentro de su tema). La unicidad compara la forma **normalizada**: sin distinguir mayúsculas, **sin tildes ni diéresis** (`Estadística` = `estadistica`) y con los espacios sobrantes quitados y los internos reducidos a uno. Renombrar un elemento con su mismo nombre, o con una variante que se normaliza igual, **no** es duplicado.
+**Invariantes:** INV-22 (identificador estable, independiente del nombre), INV-23 (sin huérfanos: todo `Tema` pertenece a una `Competencia` y todo `Subtema` a un `Tema`), INV-24 (nombre de competencia único en el catálogo; nombre de tema único dentro de su competencia; nombre de subtema único dentro de su tema). La unicidad compara la forma **normalizada**: sin distinguir mayúsculas, **sin tildes ni diéresis** (`Estadística` = `estadistica`), pero **la `ñ` se conserva como letra propia** (`Año` ≠ `Ano`) y con los espacios sobrantes quitados y los internos reducidos a uno. Renombrar un elemento con su mismo nombre, o con una variante que se normaliza igual, **no** es duplicado. Si el texto literal cambia (por ejemplo, para corregir una mayúscula o una tilde), **el nombre guardado se actualiza** y se emite el evento de renombrado. Si el texto es idéntico, no cambia nada ni se emite evento. La siembra inicial se ejecuta en **una sola transacción** (todo o nada).
 **Caso de uso de la consulta gRPC:** `ValidarClasificacionCasoUso`, que aplica el orden de verificación del enum `MotivoRechazo`.
 **Siembra:** al arrancar, si no hay competencias, carga la tabla 4.3 con esos ids exactos (de forma idempotente).
 **Tareas transversales (P3):** esqueleto del repo, `docker-compose.yml`, `.env.example`, `CODEOWNERS`, diagrama de arquitectura, README raíz (incluye `grpcurl`).
@@ -943,3 +959,20 @@ stateDiagram-v2
 8. Excepción documentada a 3.3.5 para los dos casos de uso de revisión (3.3 y 11.1).
 9. Responsable y detalle en la trazabilidad del dictamen automático; `registrarEnHistorial` fuera de `EN_REVISION` → 409 (11.1).
 10. Catálogo: la unicidad de nombres no distingue tildes y renombrar con el mismo nombre no es duplicado (11.2).
+
+### 1.9 (2-oct-2026), dudas de la etapa 1 de Catálogo
+1. UUID de entrada: solo la forma canónica; las mayúsculas se normalizan; las demás formas → 400 (4). Aplica a los tres servicios.
+2. `X-Roles` vacío → 401; rol desconocido → 400 (4.1).
+3. `PUT` de competencia: `descripcion` ausente se conserva; `null` o `""` la borra (8.2).
+4. La normalización conserva la `ñ`. Renombrar con una variante actualiza el texto guardado sin contar como duplicado. Siembra atómica (11.2).
+
+### 1.10 (2-oct-2026), dudas de la etapa 2 de Editorial
+1. Arranque sin base de datos: las migraciones van en segundo plano y el esquema se valida en las pruebas, no al arrancar. Aplica a los tres servicios (9.3.6).
+2. Nuevo código 409 `CONFLICTO_DE_CONCURRENCIA` para el bloqueo optimista (5.3).
+3. Códigos de protocolo `RECURSO_NO_ENCONTRADO` (404), `METODO_NO_PERMITIDO` (405) y `TIPO_DE_CONTENIDO_NO_SOPORTADO` (415) para los tres servicios (5.3).
+4. `X-Id-Correlacion` inválido: se genera uno nuevo y se registra un aviso; nunca es error (4.1).
+
+### 1.11 (2-oct-2026), dudas de la etapa 2 de Catálogo
+1. gRPC: si la base de datos de Catálogo no responde o su esquema no está listo → `UNAVAILABLE`; si hay un error inesperado → `INTERNAL`. Editorial traduce ambos a 503 `CATALOGO_NO_DISPONIBLE` (6).
+2. `Location` de los `POST` de temas y subtemas → la competencia (8.2).
+3. Los códigos de protocolo de la v1.10 (`RECURSO_NO_ENCONTRADO`, `METODO_NO_PERMITIDO`, `TIPO_DE_CONTENIDO_NO_SOPORTADO`) aplican a los tres servicios; reemplazan cualquier nombre local como `RUTA_NO_ENCONTRADA`.
