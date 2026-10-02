@@ -3,17 +3,19 @@
 > **Fuente única de verdad** para los tres microservicios. Si algo de este documento choca con el código, **manda este documento**.
 > Cambiar cualquier contrato de las secciones 5 a 8 se hace con un PR que modifique este archivo y la carpeta `/contratos` en el mismo commit, avisando al equipo. Basta la aprobación de **otro** integrante.
 >
-> **Versión 1.1** (2-oct-2026). Cambios respecto a la 1.0 en la sección 13.
+> **Versión 1.8** (2-oct-2026). Historial de cambios en la sección 13.
 
 ---
 
 ## 0. Cómo usar este documento (instrucciones para Claude Code)
 
 1. Lee **siempre** las secciones 1 a 10 (reglas comunes y contratos).
+1b. Lee **siempre** `/MODELO-DOMINIO.md`: la Parte A completa y, de la Parte B, las secciones que su tabla indica para tu servicio. Ahí están el texto exacto de las invariantes INV-xx, las decisiones D-xx y los casos de uso CU-xx del Taller 1. **No preguntes por el Taller 1: todo lo necesario está en ese archivo.**
 2. Lee **solo** la sección de tu servicio en la parte 11 (11.1 Editorial, 11.2 Catálogo, 11.3 Evaluación).
 3. **No** leas ni modifiques el código de otro servicio: todo lo que necesitas de él está aquí.
 4. **No** modifiques `/contratos` ni este archivo por iniciativa propia; si un contrato no alcanza, detente y repórtalo.
 5. Los nombres entre `comillas de código` son **exactos**: respeta mayúsculas, guiones y puntos tal cual.
+6. **Git es tarea exclusiva de las personas.** No ejecutes `git add`, `git commit`, `git push`, `git reset`, `git checkout`, `git switch`, `git merge`, `git rebase`, `git stash` ni ningún comando que cambie el estado del repositorio. Solo puedes usar los comandos de lectura (`git status`, `git diff`, `git log`). Al terminar, deja los cambios en el directorio de trabajo, sin agregarlos al área de preparación, y lista los archivos creados o modificados para que el integrante los revise y haga el commit.
 
 Cada servicio tendrá un `CLAUDE.md` propio con esta indicación: *"Lee /CONTRATOS.md (secciones 1–10 y la sección 11.x de este servicio) antes de escribir código."*
 
@@ -23,9 +25,9 @@ Cada servicio tendrá un `CLAUDE.md` propio con esta indicación: *"Lee /CONTRAT
 
 | Servicio | Contexto (Taller 1) | Tecnología | Base de datos | Dueño (GitHub) | REST | gRPC |
 |---|---|---|---|---|---|---|
-| `servicio-editorial` | Gestión Editorial de Preguntas | Java 21 · Spring Boot 3 | PostgreSQL 16 (`bd-editorial`) | P1 `@juanvec06` | 8081 | cliente |
+| `servicio-editorial` | Gestión Editorial de Preguntas | Java 21 · Spring Boot 4.1.1 | PostgreSQL 16 (`bd-editorial`) | P1 `@juanvec06` | 8081 | cliente |
 | `servicio-catalogo` | Catálogo Académico | Python 3.12 · FastAPI | PostgreSQL 16 (`bd-catalogo`) | P3 `@JuanDv1` | 8082 | servidor 50051 |
-| `servicio-evaluacion` | Evaluación y Simulacros | TypeScript · Node 20 · NestJS 10 | MongoDB 7 (`bd-evaluacion`) | P2 `@JDiegoG12` | 8083 | — |
+| `servicio-evaluacion` | Evaluación y Simulacros | TypeScript · Node 24 (v24.20.0) · NestJS 11 | MongoDB 7 (`bd-evaluacion`) | P2 `@JDiegoG12` | 8083 | — |
 | `rabbitmq` | Broker de mensajes | RabbitMQ 3.13 (management) | — | P3 (compose) | 15672 (consola) | — |
 
 ```mermaid
@@ -72,6 +74,7 @@ Ningún servicio lee la base de datos de otro. Ningún servicio llama por REST a
 ```
 /
 ├── CONTRATOS.md                  ← este archivo
+├── MODELO-DOMINIO.md             ← modelo del Taller 1 (invariantes, decisiones, CU) + ajustes del Taller 2
 ├── README.md                     ← cómo ejecutar y probar todo (P3)
 ├── docker-compose.yml            ← P3
 ├── .env.example                  ← variables por defecto (sin secretos reales)
@@ -141,7 +144,7 @@ Reglas:
 2. **Entidades de dominio sin anotaciones de persistencia.** Los modelos de base de datos (`@Entity`, modelos SQLAlchemy, esquemas Mongoose) viven en `infraestructura` y se traducen con *mappers*.
 3. **Controladores sin reglas de negocio**: validan forma, llaman a un caso de uso, traducen la respuesta.
 4. **Un caso de uso = una clase** (nada de `PreguntaService` gigante).
-5. **Un caso de uso modifica un solo agregado por transacción.**
+5. **Un caso de uso modifica un solo agregado por transacción.** Hay **una excepción documentada** en Editorial (ver 11.1, "Excepción a 3.3.5"): `AsignarRevisoresCasoUso` y `RegistrarEvaluacionCasoUso` guardan `ProcesoDeRevision` y `Pregunta` en **una sola transacción local**.
 6. **Los eventos de dominio** son objetos del dominio; la **traducción a mensaje de integración** (JSON de la sección 7) ocurre en `infraestructura`.
 7. **Repositorios con métodos del negocio** (`buscarPublicadasPorCriterios`), no CRUD genérico expuesto.
 8. **Nunca se borra físicamente** una Pregunta (RNF-16); no existen endpoints `DELETE` en el sistema.
@@ -166,6 +169,7 @@ Convenciones propias de cada lenguaje se respetan: Java y TS en `PascalCase`/`ca
 - Las pruebas de dominio no levantan base de datos, broker ni servidor.
 
 ### 3.6 Git
+- **Los commits y los push los hace cada integrante, nunca el agente** (ver regla 6 de la sección 0).
 - Ramas: `main` (siempre funcional) y `feature/<servicio>-<tema>` (ej. `feature/editorial-revision`).
 - Commits convencionales en español: `feat(editorial): agrega caso de uso de publicación`, `fix(catalogo): ...`, `docs(contratos): ...`.
 - Cada integrante solo modifica su carpeta. `/contratos`, `CONTRATOS.md`, `docker-compose.yml` y `/postman` se cambian por PR aprobado por **al menos otro integrante** (no se exige la aprobación de los tres).
@@ -181,13 +185,14 @@ Convenciones propias de cada lenguaje se respetan: Java y TS en `PascalCase`/`ca
 | Claves JSON | **camelCase** en REST y eventos (`preguntaId`, `competenciaId`, `fechaOcurrencia`). Python usa alias de Pydantic (`alias_generator=to_camel`, `populate_by_name=True`, respuestas `by_alias=True`). |
 | Campos del `.proto` | `snake_case` (guía de estilo de Protobuf). El código generado los expone como `getCompetenciaId()` en Java y `competencia_id` en Python. |
 | Enums | **MAYÚSCULAS_CON_GUION_BAJO, sin tildes**, serializados por nombre: `EN_CONSTRUCCION`, `ALTO`, `APROBATORIA`. |
-| Fechas | **ISO-8601 en UTC con `Z`**: `"2026-10-01T15:30:00Z"`. Nunca epoch numérico, nunca hora local. Contenedores con `TZ=UTC`. Jackson con `WRITE_DATES_AS_TIMESTAMPS=false`. |
+| Fechas | **ISO-8601 en UTC con `Z`**: `"2026-10-01T15:30:00Z"`. Nunca epoch numérico, nunca hora local. Contenedores con `TZ=UTC`. En Java, Jackson (la versión 3 que trae Spring Boot 4) debe serializar las fechas como texto ISO, no como números: verificarlo con una prueba. |
 | Duraciones | Enteros en minutos con el sufijo en el nombre: `duracionMaximaMinutos`. |
 | Puntajes | Número decimal de 0 a 100 con 2 decimales (`puntaje: 66.67`). |
 | Letras de opción | `"A"`, `"B"`, `"C"`, `"D"` (mayúscula, un carácter). |
 | Codificación | UTF-8 en todo (HTTP, base de datos, mensajes). |
 | Campos desconocidos | Al **leer** (eventos o respuestas) se ignoran campos desconocidos (lector tolerante). Al **escribir** se envían exactamente los campos del contrato. |
 | Nulos | Un campo opcional ausente se envía como `null`, no se omite, en eventos. En REST se permite omitir. |
+| Longitud de textos | Todos los límites de longitud (RF-08, RF-09, RF-13, nombres del catálogo, `motivo`) se cuentan en **caracteres Unicode (puntos de código)**, después de quitar los espacios del inicio y del final. En Java usa `codePointCount`; en Python, `len()`; en TypeScript, `[...texto].length` (no `texto.length`, que cuenta unidades UTF-16). |
 
 ### 4.1 Roles y encabezados de identidad
 No hay servicio de identidad. Quien llama declara su identidad en encabezados HTTP (en producción lo haría un API Gateway).
@@ -239,7 +244,7 @@ Las pruebas de Editorial y Evaluación usan **estos** identificadores. Nadie má
 - Sin verbos tipo `/getPreguntas` o `/publicarPregunta`. Las **transiciones del ciclo de vida** se exponen como sub-recursos sustantivados con `POST` (`/preguntas/{preguntaId}/publicacion`).
 - `POST` que crea → **201** + encabezado `Location` + cuerpo con el recurso. Transición → **200** + recurso actualizado.
 - `Content-Type: application/json; charset=utf-8`.
-- Paginación: parámetros `pagina` (desde 0) y `tamano` (por defecto 20, máximo 100). Respuesta:
+- Paginación: parámetros `pagina` (desde 0) y `tamano` (por defecto 20, máximo 100). Un `tamano` mayor que 100, menor que 1 o una `pagina` negativa → **400** `SOLICITUD_INVALIDA`; no se recorta en silencio. Respuesta:
   ```json
   { "contenido": [], "pagina": 0, "tamano": 20, "totalElementos": 0, "totalPaginas": 0 }
   ```
@@ -263,13 +268,15 @@ Las pruebas de Editorial y Evaluación usan **estos** identificadores. Nadie má
 ### 5.3 Mapa de códigos HTTP (igual en los tres servicios)
 | HTTP | Cuándo | Ejemplos de `codigo` |
 |---|---|---|
-| 400 | La solicitud está mal formada (JSON inválido, tipo incorrecto, UUID mal escrito, campo obligatorio ausente) | `SOLICITUD_INVALIDA` |
+| 400 | La solicitud está mal formada (JSON inválido, tipo incorrecto, UUID mal escrito, campo obligatorio ausente) **o un campo viola su propio formato o rango** sin que sea una invariante del Taller 1 (por ejemplo, `valoracion` fuera de 1–5 o un criterio faltante o repetido) | `SOLICITUD_INVALIDA` |
 | 401 | Faltan encabezados de identidad | `NO_AUTENTICADO` |
 | 403 | Rol insuficiente o el usuario no es el dueño | `ACCESO_DENEGADO`, `REVISOR_NO_ASIGNADO` |
-| 404 | El recurso no existe | `PREGUNTA_NO_ENCONTRADA`, `COMPETENCIA_NO_ENCONTRADA` |
+| 404 | El recurso no existe | `PREGUNTA_NO_ENCONTRADA`, `PROCESO_REVISION_NO_ENCONTRADO`, `COMPETENCIA_NO_ENCONTRADA`, `TEMA_NO_ENCONTRADO`, `SUBTEMA_NO_ENCONTRADO`, `SIMULACRO_NO_ENCONTRADO`, `INTENTO_NO_ENCONTRADO` |
 | 409 | El **estado actual** no permite la operación o hay duplicado | `TRANSICION_NO_PERMITIDA`, `PREGUNTA_NO_EDITABLE`, `NOMBRE_DUPLICADO`, `INTENTO_FINALIZADO` |
-| 422 | Datos bien formados que **violan una regla de negocio o invariante** | `CLASIFICACION_INVALIDA`, `REVISORES_INSUFICIENTES`, `PREGUNTAS_INSUFICIENTES` |
-| 503 | Una dependencia externa no responde | `CATALOGO_NO_DISPONIBLE` |
+| 422 | Datos bien formados que **violan una regla de negocio o una invariante INV-xx** del Taller 1 | `CLASIFICACION_INVALIDA`, `REVISORES_INSUFICIENTES`, `PREGUNTAS_INSUFICIENTES`, `DURACION_INVALIDA` |
+
+**Regla para elegir entre 400 y 422:** si la restricción es una **invariante INV-xx** o una regla de negocio del Taller 1, es **422** (por ejemplo, la duración positiva de INV-28). Si es solo el formato o rango de un campo, sin invariante detrás, es **400**. Si depende del **estado actual** del recurso, es **409**.
+| 503 | Una dependencia externa no responde | `CATALOGO_NO_DISPONIBLE`, `BASE_DE_DATOS_NO_DISPONIBLE` (los tres servicios, si su base de datos no responde) |
 | 500 | Error inesperado (nunca exponer trazas) | `ERROR_INTERNO` |
 
 ---
@@ -498,10 +505,13 @@ Reglas que el esquema JSON no puede expresar y que **el productor garantiza en s
 
 **Consumidor (Evaluación):**
 1. **Ack manual** solo después de guardar en MongoDB.
-2. **Idempotente**: procesar dos veces el mismo `idEvento` o la misma `preguntaId` no duplica nada (guardar con *upsert* por `preguntaId` y registrar `idEvento` procesados).
+2. **Idempotente**: procesar dos veces el mismo `idEvento` o la misma `preguntaId` no duplica nada (guardar con *upsert* por `preguntaId` y registrar los `idEvento` procesados). Para que también funcione con entregas simultáneas se usa **"reclamar y liberar si falla"**:
+   - se reclama el `idEvento` de forma atómica (inserción con índice único);
+   - si el reclamo ya existía, se confirma (ack) sin hacer nada;
+   - si el trabajo posterior **falla**, se **borra el reclamo** antes del `nack`, para que el mensaje se pueda reprocesar después desde la DLQ sin perder datos.
 3. **Orden no garantizado**: si llega `PreguntaArchivada` de una pregunta desconocida, se guarda una marca `ARCHIVADA`; si después llega su `PreguntaPublicada`, la pregunta **queda archivada**.
 4. Mensaje inválido → `nack` **sin** reencolar → termina en `evaluacion.preguntas.dlq`. Se registra en el log. Es inválido **solo** si: el JSON no se puede leer, `versionEvento` ≠ 1, `tipoEvento` no es uno de los esperados, o falta (o tiene tipo incorrecto) un campo **obligatorio**. **Un campo adicional desconocido NO lo vuelve inválido**: se ignora (lector tolerante, sección 4). Por eso el consumidor **no** valida con los esquemas estrictos de `/contratos`; valida solo los campos que usa.
-5. Error transitorio (Mongo caído) → `nack` sin reencolar también (sin bucles infinitos); se revisa la DLQ en la consola de RabbitMQ.
+5. Error transitorio (Mongo caído) → `nack` sin reencolar también (sin bucles infinitos); se revisa la DLQ en la consola de RabbitMQ. Para evitar que los mensajes terminen en la DLQ mientras la base de datos está caída, el consumidor **solo consume mientras hay conexión con la base de datos**: no empieza a consumir hasta que esta conecta, y si se pierde la conexión cancela el consumo y lo reanuda al recuperarla. Los mensajes esperan en la cola.
 6. Reintenta la conexión al broker al arrancar (espera progresiva, máximo 30 s entre intentos): el servicio **no** debe caerse si RabbitMQ aún no está listo.
 
 ### 7.8 Esquemas JSON
@@ -525,17 +535,26 @@ Todos los cuerpos usan los formatos de la sección 4. Los roles indicados se ver
 | `POST /preguntas` | `AUTOR` | CU-04 | 201 `PreguntaRespuesta` | 422 `CLASIFICACION_INVALIDA`, 503 `CATALOGO_NO_DISPONIBLE` |
 | `PUT /preguntas/{preguntaId}` | `AUTOR` (dueño) | CU-05 | 200 `PreguntaRespuesta` | 404, 403, 409 `PREGUNTA_NO_EDITABLE`, 422, 503 |
 | `GET /preguntas` | cualquiera | CU-06 | 200 página de `PreguntaResumen` | — |
-| `GET /preguntas/{preguntaId}` | cualquiera (según rol) | CU-06 | 200 `PreguntaRespuesta` | 404 |
+| `GET /preguntas/{preguntaId}` | cualquiera (según rol) | CU-06 | 200 `PreguntaRespuesta` | 404, 403 `ACCESO_DENEGADO` si existe pero ningún rol del usuario permite verla |
 | `POST /preguntas/{preguntaId}/envio-revision` | `AUTOR` (dueño) | CU-07 | 200 `PreguntaRespuesta` | 404, 403, 409 `TRANSICION_NO_PERMITIDA` |
 | `POST /preguntas/{preguntaId}/procesos-revision` | `ADMINISTRADOR` | CU-10 | 201 `ProcesoRevisionRespuesta` | 404, 409, 422 `REVISORES_INSUFICIENTES`, `AUTOR_NO_PUEDE_SER_REVISOR`, `REVISOR_DUPLICADO` |
 | `GET /procesos-revision/{procesoId}` | `ADMINISTRADOR`, `REVISOR` asignado | — | 200 `ProcesoRevisionRespuesta` | 404, 403 |
-| `GET /procesos-revision?revisorId={uuid}&estado=ABIERTO` | `REVISOR`, `ADMINISTRADOR` | CU-06 | 200 página | — |
+| `GET /procesos-revision?revisorId={uuid}&estado={ABIERTO\|CERRADO}` | `REVISOR`, `ADMINISTRADOR` | CU-06 | 200 página de `ProcesoRevisionRespuesta` (paginación 5.1) | 400, 403 |
 | `POST /procesos-revision/{procesoId}/evaluaciones` | `REVISOR` asignado | CU-11 (+CU-12 automático) | 201 `ProcesoRevisionRespuesta` | 404, 403 `REVISOR_NO_ASIGNADO`, 409 `EVALUACION_YA_REGISTRADA`, 409 `PROCESO_CERRADO` |
-| `POST /preguntas/{preguntaId}/publicacion` | `ADMINISTRADOR` | CU-08 | 200 `PreguntaRespuesta` (+ evento) | 404, 409 `TRANSICION_NO_PERMITIDA` |
+| `POST /preguntas/{preguntaId}/publicacion` | `ADMINISTRADOR` | CU-08 | 200 `PreguntaRespuesta` (+ evento) | 404, 409 `TRANSICION_NO_PERMITIDA` (también si no hay un proceso cerrado con dictamen `APROBADA`) |
 | `POST /preguntas/{preguntaId}/archivado` | `ADMINISTRADOR` | CU-09 | 200 `PreguntaRespuesta` (+ evento) | 400 si falta `motivo`, 404, 409 `TRANSICION_NO_PERMITIDA` |
 | `GET /preguntas/{preguntaId}/trazabilidad` | `ADMINISTRADOR` | CU-18 | 200 `TrazabilidadRespuesta` | 404 |
 
 Filtros de `GET /preguntas`: `competenciaId`, `temaId`, `subtemaId`, `nivelDificultad`, `estado`, `autorId`, `pagina`, `tamano`. Restricción por rol (CU-06): `AUTOR` ve solo las suyas, `REVISOR` las asignadas, `DOCENTE` las `PUBLICADA`, `ADMINISTRADOR` todas.
+- **Usuario con varios roles (D-08): se unen los resultados.** Si tiene `ADMINISTRADOR`, ve todas. Si no, ve la **unión** de lo que permite cada rol que tenga. Por ejemplo, `AUTOR,DOCENTE` ve sus preguntas en cualquier estado y además todas las `PUBLICADA`. Los filtros de la consulta se aplican **sobre** esa unión, y la paginación sobre el resultado combinado (en la base de datos, no en memoria).
+- Un usuario que solo tiene el rol `ESTUDIANTE` → 403 `ACCESO_DENEGADO`.
+
+Filtros de `GET /procesos-revision`:
+- `estado` es opcional (`ABIERTO` por defecto, o `CERRADO`); cualquier otro valor → 400.
+- Un `REVISOR` sin rol `ADMINISTRADOR` solo ve sus procesos: si omite `revisorId` se usa el suyo, y si pide el de otro → 403.
+- El `ADMINISTRADOR` puede omitir `revisorId` para ver todos los procesos de ese estado.
+
+**`PreguntaResumen`** (elemento de `GET /preguntas`): `preguntaId`, `autorId`, `preguntaDirecta`, `estado`, `clasificacion` (`{competenciaId, temaId, subtemaId}`), `nivelDificultad` y `fechaActualizacion`.
 
 **`PreguntaSolicitud`** (POST y PUT):
 ```json
@@ -581,9 +600,9 @@ Filtros de `GET /preguntas`: `competenciaId`, `temaId`, `subtemaId`, `nivelDific
 ```
 `criterio` ∈ {`PEDAGOGICO`, `TECNICO`, `ESTRUCTURAL`} (los tres obligatorios); `valoracion` entero 1–5; `decision` ∈ {`APROBATORIA`, `REPROBATORIA`}.
 
-**`ProcesoRevisionRespuesta`**: `procesoId`, `preguntaId`, `estado` (`ABIERTO` | `CERRADO`), `asignaciones` (`[{revisorId, fechaAsignacion, evaluacionRegistrada}]`), `evaluaciones`, `dictamen` (`null` | `{ "resultado": "APROBADA" | "RECHAZADA", "porcentajeAprobacion": 100.00, "fechaEmision": "…" }`).
+**`ProcesoRevisionRespuesta`**: `procesoId`, `preguntaId`, `estado` (`ABIERTO` | `CERRADO`), `asignaciones` (`[{revisorId, fechaAsignacion, evaluacionRegistrada}]`), `evaluaciones` (`[{ revisorId, criterios: [{criterio, valoracion}], observaciones: [texto], decision, fechaEmision }]`), `dictamen` (`null` | `{ "resultado": "APROBADA" | "RECHAZADA", "porcentajeAprobacion": 100.00, "fechaEmision": "…" }`).
 
-**`TrazabilidadRespuesta`**: `preguntaId`, `registros` (`[{fecha, usuarioId, tipo: "CREACION"|"MODIFICACION"|"TRANSICION", estadoAnterior, estadoNuevo, detalle}]` en orden cronológico) e `historialRevisiones` (evaluaciones y dictámenes de todos los procesos).
+**`TrazabilidadRespuesta`**: `preguntaId`, `registros` (`[{fecha, usuarioId, tipo: "CREACION"|"MODIFICACION"|"TRANSICION", estadoAnterior, estadoNuevo, detalle}]` en orden cronológico) e `historialRevisiones`: evaluaciones y dictámenes de todos los procesos, en orden cronológico. Cada entrada es `{ tipo: "EVALUACION" | "DICTAMEN", procesoId, fecha, evaluacion, dictamen }`: `evaluacion` tiene la forma de un elemento de `evaluaciones` y es `null` si `tipo` es `DICTAMEN`; `dictamen` tiene la forma de arriba y es `null` si `tipo` es `EVALUACION`.
 
 ### 8.2 `servicio-catalogo` · `http://localhost:8082/api/v1`
 
@@ -607,12 +626,12 @@ Sin `DELETE`: borrar un elemento del catálogo dejaría preguntas con referencia
 | Método y ruta | Rol | CU | Éxito | Errores propios |
 |---|---|---|---|---|
 | `POST /simulacros` | `DOCENTE` | CU-13 | 201 `SimulacroRespuesta` | 422 `PREGUNTAS_INSUFICIENTES`, 422 `DURACION_INVALIDA` |
-| `GET /simulacros` | `DOCENTE`, `ESTUDIANTE` | — | 200 lista | — |
+| `GET /simulacros` | `DOCENTE`, `ESTUDIANTE` | — | 200 página de `SimulacroResumen` (paginación 5.1) | 400 |
 | `GET /simulacros/{simulacroId}` | `DOCENTE`, `ESTUDIANTE` | — | 200 `SimulacroRespuesta` (sin claves) | 404 `SIMULACRO_NO_ENCONTRADO` |
 | `POST /simulacros/{simulacroId}/intentos` | `ESTUDIANTE` | CU-14 | 201 `IntentoRespuesta` | 404 |
 | `PUT /intentos/{intentoId}/respuestas/{preguntaId}` | `ESTUDIANTE` (dueño) | CU-14 | 200 `IntentoRespuesta` | 404 `INTENTO_NO_ENCONTRADO`, 403, 409 `INTENTO_FINALIZADO`, 422 `PREGUNTA_NO_PERTENECE_AL_SIMULACRO` |
-| `POST /intentos/{intentoId}/finalizacion` | `ESTUDIANTE` (dueño) | CU-14 + CU-15 | 200 `IntentoRespuesta` con calificación (+ evento) | 404, 403, 409 `INTENTO_FINALIZADO` |
-| `GET /intentos/{intentoId}` | `ESTUDIANTE` (dueño), `DOCENTE` | — | 200 `IntentoRespuesta` | 404, 403 |
+| `POST /intentos/{intentoId}/finalizacion` | `ESTUDIANTE` (dueño) | CU-14 + CU-15 | 200 `IntentoRespuesta` con calificación (+ evento) | 404, 403, 409 `INTENTO_FINALIZADO` (solo si **ya** estaba finalizado antes de esta petición) |
+| `GET /intentos/{intentoId}` | `ESTUDIANTE` (solo el dueño), `DOCENTE` (cualquier intento, solo lectura) | — | 200 `IntentoRespuesta` | 404, 403 |
 | `GET /preguntas-evaluables` | `DOCENTE` | — | 200 página de copias locales (sin `letraCorrecta`) | — |
 
 `GET /preguntas-evaluables` existe para **demostrar en Postman que el evento llegó** (filtros `competenciaId`, `nivelDificultad`, `estado`).
@@ -633,7 +652,33 @@ Sin `DELETE`: borrar un elemento del catálogo dejaría preguntas con referencia
 ```
 Semántica de los criterios: dentro de una lista es **O**, entre listas es **Y**, y una lista vacía **no filtra**. Solo se eligen copias en estado `PUBLICADA`, al azar y sin repetir (INV-25, INV-27). Si hay menos de `cantidadPreguntas` candidatas → 422 `PREGUNTAS_INSUFICIENTES` (INV-26). `duracionMaximaMinutos` > 0 (INV-28).
 
-**`IntentoRespuesta`**: `intentoId`, `simulacroId`, `estudianteId`, `estado` (`EN_CURSO` | `FINALIZADO` | `CALIFICADO`), `fechaInicio`, `fechaLimite`, `fechaFinalizacion`, `finalizadoPor`, `preguntas` (`[{preguntaId, posicion, contexto, preguntaDirecta, opciones:[{letra, texto}]}]`, **nunca** `letraCorrecta`), `respuestas` (`[{preguntaId, letraSeleccionada}]`), `calificacion` (`null` hasta calificar, luego igual a la del evento 7.6, con su desglose).
+**`IntentoRespuesta`**: `intentoId`, `simulacroId`, `estudianteId`, `estado` (`EN_CURSO` | `FINALIZADO` | `CALIFICADO`), `fechaInicio`, `fechaLimite`, `fechaFinalizacion`, `finalizadoPor`, `preguntas` (`[{preguntaId, posicion, contexto, preguntaDirecta, opciones:[{letra, texto}]}]`, **nunca** `letraCorrecta`), `respuestas` (`[{preguntaId, letraSeleccionada}]`) y `calificacion`. `calificacion` es `null` hasta calificar; después es `{ "totalPreguntas", "correctas", "puntaje", "desglosePorCompetencia": [ { "competenciaId", "totalPreguntas", "correctas", "puntaje" } ] }`. En REST el desglose va **dentro** de `calificacion`; en el evento 7.6 va al mismo nivel (cada contrato conserva su forma).
+
+**`SimulacroRespuesta`**:
+```json
+{
+  "simulacroId": "uuid", "nombre": "Simulacro cuantitativo 1", "docenteId": "uuid",
+  "criterios": { "competenciaIds": [], "temaIds": [], "subtemaIds": [], "nivelesDificultad": [] },
+  "cantidadPreguntas": 5, "duracionMaximaMinutos": 30,
+  "preguntas": [ { "preguntaId": "uuid", "posicion": 1 } ],
+  "fechaCreacion": "2026-10-01T15:30:00Z"
+}
+```
+`SimulacroResumen` (listado): el mismo objeto sin `preguntas`. `posicion` **empieza en 1**.
+
+**Elemento de `GET /preguntas-evaluables`**: `preguntaId`, `contexto`, `preguntaDirecta`, `opciones` (`[{letra, texto}]`), `clasificacion` (`{competenciaId, temaId, subtemaId}`), `nivelDificultad`, `estado` (`PUBLICADA` | `ARCHIVADA`), `fechaPublicacion`, `motivoArchivo` (`null` si no está archivada), `fechaArchivado` (`null` si no está archivada) y `fechaActualizacion`. **Nunca** `letraCorrecta`.
+
+**Reglas acordadas del intento:**
+- **Vencimiento por tiempo:** si un intento vence por tiempo, `fechaFinalizacion` = `fechaLimite`, que es el instante real del vencimiento, no el momento en que se detecta.
+- **Finalizar un intento ya vencido:** si al llamar a `POST /intentos/{intentoId}/finalizacion` el intento seguía `EN_CURSO` pero ya había vencido, se finaliza con `TIEMPO_AGOTADO`, se califica y se responde **200** (no es error). Solo responde 409 `INTENTO_FINALIZADO` si ya estaba `FINALIZADO` o `CALIFICADO` antes de la petición.
+- **Copia local ausente:** si al calificar o al armar un intento falta la copia local de una pregunta del simulacro, hay una inconsistencia interna: **500** `ERROR_INTERNO` y un registro de error en el log. Las copias nunca se borran, así que no debería ocurrir.
+
+**Códigos de error internos de Evaluación.** Protegen invariantes que la API no puede provocar: el ensamblador ya filtra y el caso de uso ya verifica. Igual existen y se prueban en el dominio:
+| Código | HTTP | Invariante |
+|---|---|---|
+| `PREGUNTA_NO_PUBLICADA` | 422 | INV-25: se intentó incluir una pregunta archivada al definir un simulacro |
+| `PREGUNTA_DUPLICADA_EN_SIMULACRO` | 422 | INV-27 |
+| `INTENTO_YA_CALIFICADO` | 409 | INV-32: segunda calificación del mismo intento |
 
 Cuerpo de respuesta del estudiante: `{ "letraSeleccionada": "B" }`.
 
@@ -680,7 +725,7 @@ Las credenciales viven en `.env` (no versionado) con los valores de `.env.exampl
 3. Usuario sin privilegios (no `root`).
 4. `EXPOSE` con los puertos internos de 9.1.
 5. Debe incluir `curl` (lo usa el healthcheck): `HEALTHCHECK` / compose ejecuta `curl -f http://localhost:<puerto>/salud`.
-6. El servicio arranca aunque sus dependencias no estén listas y reintenta conectarse (BD, RabbitMQ). El cliente gRPC de Editorial se conecta de forma perezosa (en la primera llamada).
+6. El servicio arranca aunque sus dependencias no estén listas y reintenta conectarse (BD, RabbitMQ). El cliente gRPC de Editorial se conecta de forma perezosa (en la primera llamada). Mientras la base de datos no responde: `/salud` sigue en 200, porque indica que el proceso está vivo, y los endpoints que la necesitan responden **503** `BASE_DE_DATOS_NO_DISPONIBLE` en vez de 500.
 
 `docker-compose.yml` (P3) usa `depends_on` con `condition: service_healthy` para las bases de datos y RabbitMQ (`rabbitmq-diagnostics -q ping`).
 
@@ -728,7 +773,7 @@ sequenceDiagram
 
 ## 11. Secciones por servicio
 
-### 11.1 `servicio-editorial` (P1 · Java 21 · Spring Boot 3 · PostgreSQL)
+### 11.1 `servicio-editorial` (P1 · Java 21 · Spring Boot 4.1.1 · PostgreSQL)
 
 **Produce:** REST 8.1 · eventos `PreguntaPublicada` y `PreguntaArchivada` (7.4, 7.5).
 **Consume:** gRPC `CatalogoAcademico.ValidarClasificacion` (6).
@@ -774,7 +819,15 @@ Las reglas que fallan se devuelven en `erroresValidacion` (no son error HTTP). U
 - Al menos 2 revisores (D-03), sin repetir (INV-17), ninguno igual al autor (D-06). Como no existe Identidad, no se puede comprobar que los ids tengan el rol `REVISOR`: es una **limitación documentada**. Al registrar la evaluación sí se exige que `X-Usuario-Id` esté asignado y que `X-Roles` contenga `REVISOR`.
 - Dictamen: se calcula solo cuando el 100 % de los asignados evaluó (INV-19). Es `APROBADA` si aprobatorias / asignados × 100 **> 70** (estricto, INV-20). Con 2 o 3 revisores equivale a unanimidad (D-05).
 - Cada evaluación se copia al `HistorialDeRevisiones` de la Pregunta (D-15).
-- Toda modificación o transición agrega un `RegistroDeTrazabilidad` con fecha y `X-Usuario-Id` (RF-29, RF-30).
+- Toda modificación o transición agrega un `RegistroDeTrazabilidad` con fecha y `X-Usuario-Id` (RF-29, RF-30). En las transiciones automáticas del dictamen (CU-12: `EN_REVISION → APROBADA` o `→ RECHAZADA → EN_CONSTRUCCION`), el `usuarioId` es el del **revisor cuya evaluación disparó el dictamen**, y `detalle` = `"Dictamen automático (CU-12) disparado por la evaluación del revisor <revisorId>"`.
+- `registrarEnHistorial` sobre una pregunta que no está `EN_REVISION` → `TRANSICION_NO_PERMITIDA`. No ocurre en los flujos normales; protege el agregado.
+
+**Excepción a 3.3.5 (dos agregados en una transacción).** `AsignarRevisoresCasoUso` (abre el proceso y pasa la pregunta a `EN_REVISION`) y `RegistrarEvaluacionCasoUso` (registra la evaluación, la copia al historial de la pregunta y, si hay dictamen, aprueba o rechaza) guardan `ProcesoDeRevision` y `Pregunta` en **la misma transacción local**, con bloqueo optimista en ambos.
+
+Justificación para la sustentación:
+- D-14 define la apertura del proceso y el paso a `EN_REVISION` como **un solo hecho de negocio**, y D-15 exige que el historial viva en la pregunta.
+- Los dos agregados están en el **mismo contexto y la misma base de datos**, y el Taller 1 (10.2 y 10.3) ya asignaba esa coordinación a un servicio de dominio.
+- La alternativa, consistencia eventual con eventos internos, se evaluó y se descartó: agrega complejidad sin beneficio dentro de un mismo servicio.
 
 **No hacer:** guardar nombres de competencias (solo ids, D-13); publicar el evento desde el dominio; exponer entidades JPA en los controladores; borrar preguntas.
 
@@ -785,14 +838,14 @@ Las reglas que fallan se devuelven en `erroresValidacion` (no son error HTTP). U
 **Paquete raíz:** `catalogo` con `dominio`, `aplicacion`, `infraestructura` (SQLAlchemy, siembra de datos), `interfaces` (`rest` con routers FastAPI y `grpc` con el *servicer*). FastAPI (uvicorn) y el servidor `grpc.aio` corren en el **mismo proceso** con asyncio.
 
 **Agregado:** `Competencia` (raíz) con las entidades internas `Tema` y `Subtema`. Toda modificación de un tema o subtema se hace a través de la `Competencia` y se guarda como una unidad.
-**Invariantes:** INV-22 (identificador estable, independiente del nombre), INV-23 (sin huérfanos: todo `Tema` pertenece a una `Competencia` y todo `Subtema` a un `Tema`), INV-24 (nombre de competencia único en el catálogo; nombre de tema único dentro de su competencia; nombre de subtema único dentro de su tema). La unicidad compara sin distinguir mayúsculas y quitando espacios sobrantes.
+**Invariantes:** INV-22 (identificador estable, independiente del nombre), INV-23 (sin huérfanos: todo `Tema` pertenece a una `Competencia` y todo `Subtema` a un `Tema`), INV-24 (nombre de competencia único en el catálogo; nombre de tema único dentro de su competencia; nombre de subtema único dentro de su tema). La unicidad compara la forma **normalizada**: sin distinguir mayúsculas, **sin tildes ni diéresis** (`Estadística` = `estadistica`) y con los espacios sobrantes quitados y los internos reducidos a uno. Renombrar un elemento con su mismo nombre, o con una variante que se normaliza igual, **no** es duplicado.
 **Caso de uso de la consulta gRPC:** `ValidarClasificacionCasoUso`, que aplica el orden de verificación del enum `MotivoRechazo`.
 **Siembra:** al arrancar, si no hay competencias, carga la tabla 4.3 con esos ids exactos (de forma idempotente).
 **Tareas transversales (P3):** esqueleto del repo, `docker-compose.yml`, `.env.example`, `CODEOWNERS`, diagrama de arquitectura, README raíz (incluye `grpcurl`).
 
 **No hacer:** devolver nombres en la respuesta gRPC; ofrecer `DELETE`; mezclar los modelos SQLAlchemy con las entidades de dominio.
 
-### 11.3 `servicio-evaluacion` (P2 · Node 20 · NestJS 10 · MongoDB)
+### 11.3 `servicio-evaluacion` (P2 · Node 24 · NestJS 11 · MongoDB)
 
 **Produce:** REST 8.3 · evento `IntentoDeSimulacroCalificado` (7.6).
 **Consume:** eventos `PreguntaPublicada` y `PreguntaArchivada` de la cola `evaluacion.preguntas` (7).
@@ -852,3 +905,41 @@ stateDiagram-v2
 8. Los esquemas son estrictos para el productor y el consumidor es tolerante: un campo extra no envía el mensaje a la DLQ (7.7 y 7.8).
 9. Límites de texto en los esquemas, `desglosePorCompetencia` con al menos un elemento, `puntaje` entre 0 y 100, y reglas que garantiza el código del productor (7.6 y 7.8).
 10. `evaluacion.eventos` con `autoDelete=false` (7.1).
+
+### 1.2 (2-oct-2026)
+1. Claude Code no hace commits, push ni cambios de estado en Git. Solo usa comandos de lectura y deja los cambios sin preparar (sección 0, regla 6, y sección 3.6).
+
+### 1.3 (2-oct-2026)
+1. Evaluación usa **Node 24 (v24.20.0)** y NestJS 11, porque Node 20 dejó de tener soporte en abril de 2026. Java se mantiene en 21 (secciones 1 y 11.3). En el Dockerfile se usa la imagen `node:24` con la variante slim o alpine.
+
+### 1.4 (2-oct-2026)
+1. Editorial usa **Spring Boot 4.1.1** con Java 21 (secciones 1, 4 y 11.1). Spring Boot 4 trae Jackson 3 y starters más modulares. Las librerías de terceros (springdoc, gRPC) deben ser las versiones compatibles con Boot 4.
+
+### 1.5 (2-oct-2026)
+1. Se agrega `/MODELO-DOMINIO.md` con el modelo táctico del Taller 1 (texto literal de D-xx, INV-xx, servicios, eventos, repositorios y CU) y los ajustes del Taller 2. Es lectura obligatoria (sección 0, regla 1b).
+
+### 1.6 (2-oct-2026), dudas de la etapa 1 de Evaluación
+1. Paginación: un `tamano` fuera de 1–100 o una `pagina` negativa → 400 (5.1).
+2. `GET /simulacros` se pagina y devuelve `SimulacroResumen` (8.3).
+3. Formas exactas de `SimulacroRespuesta`, `SimulacroResumen`, el elemento de `preguntas-evaluables` (con `motivoArchivo` y `fechaArchivado`) y `calificacion` en REST, con el desglose dentro (8.3). `posicion` empieza en 1.
+4. Reglas del intento: `fechaFinalizacion = fechaLimite` si vence por tiempo; finalizar un intento vencido responde 200; copia ausente → 500 (8.3).
+5. Códigos internos `PREGUNTA_NO_PUBLICADA`, `PREGUNTA_DUPLICADA_EN_SIMULACRO` e `INTENTO_YA_CALIFICADO` (8.3).
+6. `GET /intentos/{id}`: el `DOCENTE` puede leer cualquier intento; el estudiante solo el suyo (8.3, y MODELO-DOMINIO A.2).
+7. Nombre único del método del repositorio: `buscarPublicadasPorCriterios`, en plural, como en el Taller 1.
+
+### 1.7 (2-oct-2026), dudas de la etapa 2 de Evaluación
+1. Código 503 `BASE_DE_DATOS_NO_DISPONIBLE` para los tres servicios, y comportamiento sin base de datos: `/salud` en 200 y endpoints en 503 (5.3 y 9.3.6).
+2. Idempotencia con "reclamar y liberar si falla" (7.7.2).
+3. El consumidor solo consume mientras hay conexión con la base de datos (7.7.5).
+
+### 1.8 (2-oct-2026), dudas de la etapa 1 de Editorial
+1. Nuevo código 404 `PROCESO_REVISION_NO_ENCONTRADO`; la tabla 5.3 ahora lista todos los 404.
+2. Regla para elegir entre 400, 422 y 409 (5.3).
+3. Longitudes en caracteres Unicode (puntos de código) en los tres lenguajes (4).
+4. Formas exactas de `PreguntaResumen`, de `evaluaciones` y de `historialRevisiones` (8.1).
+5. CU-06 con varios roles: unión de resultados; solo `ESTUDIANTE` → 403. Ver una pregunta no permitida → 403 (8.1).
+6. Filtros completos de `GET /procesos-revision`, paginado (8.1).
+7. Publicar sin dictamen favorable → 409 `TRANSICION_NO_PERMITIDA` (8.1).
+8. Excepción documentada a 3.3.5 para los dos casos de uso de revisión (3.3 y 11.1).
+9. Responsable y detalle en la trazabilidad del dictamen automático; `registrarEnHistorial` fuera de `EN_REVISION` → 409 (11.1).
+10. Catálogo: la unicidad de nombres no distingue tildes y renombrar con el mismo nombre no es duplicado (11.2).
