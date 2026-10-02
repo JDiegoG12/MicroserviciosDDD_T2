@@ -1,5 +1,5 @@
 import { INestApplication, RequestMethod, ValidationPipe } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, HttpAdapterHost } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
 import { PROVIDERS_DE_CASOS_DE_USO } from '../../../src/infraestructura/casos-de-uso.providers';
 import {
@@ -16,6 +16,8 @@ import { aplanarErroresDeValidacion } from '../../../src/interfaces/rest/filtros
 import { FiltroExcepcionesGlobal } from '../../../src/interfaces/rest/filtros/filtro-excepciones.global';
 import { SolicitudInvalidaHttpExcepcion } from '../../../src/interfaces/rest/excepciones/solicitud-invalida-http.excepcion';
 import { CorrelacionMiddleware } from '../../../src/interfaces/rest/middlewares/correlacion.middleware';
+import { MetodoNoPermitidoMiddleware } from '../../../src/interfaces/rest/middlewares/metodo-no-permitido.middleware';
+import { TipoDeContenidoMiddleware } from '../../../src/interfaces/rest/middlewares/tipo-de-contenido.middleware';
 import { SaludControlador } from '../../../src/interfaces/rest/salud.controlador';
 import { SimulacrosControlador } from '../../../src/interfaces/rest/simulacros.controlador';
 import { IntentosControlador } from '../../../src/interfaces/rest/intentos.controlador';
@@ -75,8 +77,16 @@ export async function construirAppDePrueba(): Promise<{ app: INestApplication; d
 
   const app = moduloDePrueba.createNestApplication();
   const middlewareDeCorrelacion = new CorrelacionMiddleware();
+  const middlewareDeMetodo = new MetodoNoPermitidoMiddleware({ httpAdapter: app.getHttpAdapter() } as HttpAdapterHost);
+  const middlewareDeContenido = new TipoDeContenidoMiddleware();
   app.use((req: unknown, res: unknown, next: () => void) =>
     middlewareDeCorrelacion.use(req as never, res as never, next),
+  );
+  app.use((req: unknown, res: unknown, next: () => void) =>
+    middlewareDeMetodo.use(req as never, res as never, next),
+  );
+  app.use((req: unknown, res: unknown, next: () => void) =>
+    middlewareDeContenido.use(req as never, res as never, next),
   );
   app.setGlobalPrefix('api/v1', {
     exclude: [

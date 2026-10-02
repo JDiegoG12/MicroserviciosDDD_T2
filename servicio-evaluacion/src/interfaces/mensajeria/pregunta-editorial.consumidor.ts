@@ -6,12 +6,12 @@ import { Connection } from 'mongoose';
 import { RegistrarPreguntaArchivadaCasoUso } from '../../aplicacion/preguntas-evaluables/registrar-pregunta-archivada.caso-uso';
 import { RegistrarPreguntaPublicadaCasoUso } from '../../aplicacion/preguntas-evaluables/registrar-pregunta-publicada.caso-uso';
 import { generarUuid } from '../../dominio/compartido/uuid';
-import { ejecutarConCorrelacion } from '../correlacion/contexto-correlacion';
-import { registrar } from '../observabilidad/registrador';
-import { BaseDeDatosNoDisponibleExcepcion } from '../persistencia/mongo/base-de-datos-no-disponible.excepcion';
-import { ConexionRabbitMqServicio } from './conexion-rabbitmq.servicio';
+import { ejecutarConCorrelacion } from '../../infraestructura/correlacion/contexto-correlacion';
+import { ConexionRabbitMqServicio } from '../../infraestructura/mensajeria/conexion-rabbitmq.servicio';
+import { asegurarTopologiaRabbitMq, COLA_EVALUACION_PREGUNTAS, PREFETCH_CONSUMIDOR } from '../../infraestructura/mensajeria/topologia-rabbitmq';
+import { registrar } from '../../infraestructura/observabilidad/registrador';
+import { BaseDeDatosNoDisponibleExcepcion } from '../../infraestructura/persistencia/mongo/base-de-datos-no-disponible.excepcion';
 import { MensajeInvalidoExcepcion } from './mensaje-invalido.excepcion';
-import { asegurarTopologiaRabbitMq, COLA_EVALUACION_PREGUNTAS, PREFETCH_CONSUMIDOR } from './topologia-rabbitmq';
 import {
   interpretarSobre,
   validarMensajePreguntaArchivada,
@@ -72,6 +72,13 @@ export class PreguntaEditorialConsumidor implements OnModuleInit {
       },
     });
 
+    // CONTRATOS.md 9.3.6: `ReconexionMongoServicio` ya registra un
+    // listener de `error` sobre esta misma conexion (necesario para que
+    // un fallo de la conexion inicial no termine en un
+    // `unhandledRejection` sin capturar que tumba el proceso, ver
+    // mongoose/lib/connection.js, issue gh-14377) y se encarga de
+    // reintentar la conexion si hace falta; este consumidor solo necesita
+    // reaccionar a cuando Mongo esta lista o deja de estarlo.
     this.conexionMongo.on('connected', () => void this.alConectarMongo());
     this.conexionMongo.on('disconnected', () => void this.alDesconectarMongo());
     if (this.mongoEstaConectada()) {
@@ -170,13 +177,12 @@ export class PreguntaEditorialConsumidor implements OnModuleInit {
         // reencola para no perder el mensaje en la DLQ; se reprocesara
         // cuando el consumo se reanude.
         //
-        // DUDA: si el intento de liberar el reclamo de idempotencia
+        // Limitacion aceptada (CONTRATOS.md 7.7.2): si el intento de
+        // liberar el reclamo de idempotencia
         // (RegistroEventosProcesadosPuerto.liberar) tambien fallo por la
         // misma caida de Mongo, el reclamo queda huerfano y el reenvio de
         // este mensaje se vera (incorrectamente) como un duplicado hasta
-        // que alguien lo libere a mano. Es una ventana estrecha (justo el
-        // instante en que Mongo cae a mitad de un mensaje) que no se
-        // resolvio por completo en esta etapa.
+        // que alguien lo libere a mano con el `idEvento` de este log.
         registrar('warn', 'MongoDB no disponible a mitad del procesamiento: se reencola el mensaje.', {
           idEvento: idEventoParaLog,
           tipoEvento: tipoEventoParaLog,

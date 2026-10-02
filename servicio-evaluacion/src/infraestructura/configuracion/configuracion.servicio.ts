@@ -42,3 +42,19 @@ export class ConfiguracionServicio {
   /** Nombre de este servicio, para `GET /salud` y el campo `origen` de los eventos. */
   public readonly nombreServicio = 'servicio-evaluacion';
 }
+
+/**
+ * Opciones de conexion de Mongoose (CONTRATOS.md 9.3.6), compartidas entre
+ * `ModuloPrincipal` (la conexion inicial, con `lazyConnection: true`) y
+ * `ReconexionMongoServicio` (los reintentos manuales tras un arranque en
+ * frio): deben ser las mismas opciones en los dos lugares.
+ *
+ * `bufferCommands: false` hace que una operacion lanzada sin conexion
+ * falle de inmediato (503 `BASE_DE_DATOS_NO_DISPONIBLE`) en vez de quedar
+ * encolada en silencio. `serverSelectionTimeoutMS: 5_000` acota cuanto
+ * espera cada intento antes de darse por vencido.
+ */
+export const OPCIONES_MONGOOSE = {
+  bufferCommands: false,
+  serverSelectionTimeoutMS: 5_000,
+} as const;

@@ -9,6 +9,8 @@ export const MAPA_CODIGO_A_HTTP: Record<string, number> = {
   SOLICITUD_INVALIDA: 400,
   NO_AUTENTICADO: 401,
   ACCESO_DENEGADO: 403,
+  METODO_NO_PERMITIDO: 405,
+  TIPO_DE_CONTENIDO_NO_SOPORTADO: 415,
   ERROR_INTERNO: 500,
   BASE_DE_DATOS_NO_DISPONIBLE: 503,
   // Propios de servicio-evaluacion (CONTRATOS.md 8.3).
@@ -29,6 +31,8 @@ export const MAPA_CODIGO_A_TITULO: Record<string, string> = {
   SOLICITUD_INVALIDA: 'Solicitud invalida',
   NO_AUTENTICADO: 'Faltan los encabezados de identidad',
   ACCESO_DENEGADO: 'Acceso denegado',
+  METODO_NO_PERMITIDO: 'Metodo no permitido',
+  TIPO_DE_CONTENIDO_NO_SOPORTADO: 'Tipo de contenido no soportado',
   ERROR_INTERNO: 'Error interno',
   BASE_DE_DATOS_NO_DISPONIBLE: 'La base de datos no esta disponible',
   SIMULACRO_NO_ENCONTRADO: 'Simulacro no encontrado',

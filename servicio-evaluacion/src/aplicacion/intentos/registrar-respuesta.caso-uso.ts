@@ -31,6 +31,22 @@ export class RegistrarRespuestaCasoUso implements CasoUso<RegistrarRespuestaComa
     private readonly reloj: RelojPuerto,
   ) {}
 
+  /**
+   * Registra la respuesta de un estudiante a una pregunta del intento.
+   *
+   * Antes de registrar aplica el vencimiento perezoso (`CierreDeIntento`):
+   * si el intento ya vencio, esta llamada lo cierra y lo califica con
+   * `TIEMPO_AGOTADO` y rechaza la respuesta con `INTENTO_FINALIZADO`
+   * (INV-31).
+   *
+   * @param comando Usuario que responde, `intentoId`, `preguntaId` y la
+   * letra seleccionada.
+   * @returns El intento actualizado, con la respuesta ya registrada.
+   * @throws IntentoNoEncontradoExcepcion Si `intentoId` no existe.
+   * @throws IntentoFinalizadoExcepcion Si el intento ya no esta EN_CURSO.
+   * @throws PreguntaNoPerteneceAlSimulacroExcepcion Si `preguntaId` no es
+   * una de las preguntas del simulacro del intento (INV-29).
+   */
   public async ejecutar(comando: RegistrarRespuestaComando): Promise<IntentoRespuesta> {
     comando.usuario.exigirAlgunRol(Rol.ESTUDIANTE);
 

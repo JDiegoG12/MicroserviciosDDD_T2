@@ -1,6 +1,10 @@
-import { ArgumentsHost, Catch, ExceptionFilter, HttpException } from '@nestjs/common';
+import { ArgumentsHost, BadRequestException, Catch, ExceptionFilter, HttpException } from '@nestjs/common';
 import { Request, Response } from 'express';
-import { obtenerIdCorrelacionActual } from '../../../infraestructura/correlacion/contexto-correlacion';
+import {
+  ENCABEZADO_CORRELACION,
+  obtenerIdCorrelacionActual,
+  resolverIdCorrelacion,
+} from '../../../infraestructura/correlacion/contexto-correlacion';
 import { registrar } from '../../../infraestructura/observabilidad/registrador';
 import { ErrorDeCampo, SolicitudInvalidaHttpExcepcion } from '../excepciones/solicitud-invalida-http.excepcion';
 import { MAPA_CODIGO_A_HTTP, MAPA_CODIGO_A_TITULO } from './mapa-codigo-http';
@@ -8,6 +12,21 @@ import { MAPA_CODIGO_A_HTTP, MAPA_CODIGO_A_TITULO } from './mapa-codigo-http';
 interface ExcepcionConCodigo {
   readonly codigo?: unknown;
   readonly message?: unknown;
+}
+
+/**
+ * Un cuerpo JSON ilegible (o una URI con un `%` mal escapado) nunca llega a
+ * nuestro `ValidationPipe`: el `RoutesResolver` de Nest intercepta el
+ * `SyntaxError`/`URIError` que lanza el body-parser de Express *antes* de
+ * que cualquier filtro vea el error original, y lo reemplaza por un
+ * `BadRequestException` generico (ver `mapExternalException` en
+ * `@nestjs/core/router/routes-resolver.js`). Este servicio nunca lanza
+ * `BadRequestException` por su cuenta (siempre usa sus propias excepciones
+ * de dominio/aplicacion), asi que verlo aqui identifica sin ambiguedad
+ * este caso.
+ */
+function esJsonMalFormado(excepcion: unknown): excepcion is BadRequestException {
+  return excepcion instanceof BadRequestException;
 }
 
 /**
@@ -26,7 +45,18 @@ export class FiltroExcepcionesGlobal implements ExceptionFilter {
     const contexto = host.switchToHttp();
     const respuesta = contexto.getResponse<Response>();
     const peticion = contexto.getRequest<Request>();
-    const idCorrelacion = obtenerIdCorrelacionActual();
+
+    // Normalmente `CorrelacionMiddleware` ya dejo el idCorrelacion en el
+    // contexto asincrono. Pero una peticion puede fallar antes de que ese
+    // middleware llegue a correr (por ejemplo, un cuerpo JSON ilegible: el
+    // body-parser de Express corre antes que los middlewares de Nest); en
+    // ese caso se resuelve aqui, con la misma regla, para no perder la
+    // trazabilidad del error.
+    let idCorrelacion = obtenerIdCorrelacionActual();
+    if (!idCorrelacion) {
+      idCorrelacion = resolverIdCorrelacion(peticion.header(ENCABEZADO_CORRELACION)).idCorrelacion;
+      respuesta.setHeader(ENCABEZADO_CORRELACION, idCorrelacion);
+    }
 
     const { status, codigo, detalle, errores } = this.interpretar(excepcion);
 
@@ -65,6 +95,15 @@ export class FiltroExcepcionesGlobal implements ExceptionFilter {
         codigo: excepcion.codigo,
         detalle: excepcion.message,
         errores: excepcion.errores,
+      };
+    }
+
+    if (esJsonMalFormado(excepcion)) {
+      return {
+        status: 400,
+        codigo: 'SOLICITUD_INVALIDA',
+        detalle: 'El cuerpo de la solicitud no es JSON valido.',
+        errores: [{ campo: 'cuerpo', mensaje: excepcion.message }],
       };
     }
 

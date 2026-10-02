@@ -6,6 +6,8 @@ import { FinalizarIntentoCasoUso } from '../../aplicacion/intentos/finalizar-int
 import { IniciarIntentoCasoUso } from '../../aplicacion/intentos/iniciar-intento.caso-uso';
 import { ObtenerIntentoCasoUso } from '../../aplicacion/intentos/obtener-intento.caso-uso';
 import { RegistrarRespuestaCasoUso } from '../../aplicacion/intentos/registrar-respuesta.caso-uso';
+import { normalizarUuid } from '../../dominio/compartido/uuid';
+import { SolicitudInvalidaExcepcion } from '../../dominio/excepciones/solicitud-invalida.excepcion';
 import { Usuario } from './decoradores/usuario.decorator';
 import { RegistrarRespuestaDto } from './dto/registrar-respuesta.dto';
 
@@ -52,9 +54,17 @@ export class IntentosControlador {
   public async responder(
     @Usuario() usuario: UsuarioActual,
     @Param('intentoId') intentoId: string,
-    @Param('preguntaId') preguntaId: string,
+    @Param('preguntaId') preguntaIdCrudo: string,
     @Body() cuerpo: RegistrarRespuestaDto,
   ) {
+    // Un UUID canonico en mayusculas se acepta y se normaliza a minusculas
+    // (CONTRATOS.md seccion 4). No hay un value object PreguntaId en este
+    // servicio (la pregunta la gestiona Editorial); se normaliza aqui,
+    // en el borde HTTP.
+    const preguntaId = normalizarUuid(preguntaIdCrudo);
+    if (!preguntaId) {
+      throw new SolicitudInvalidaExcepcion('El preguntaId debe ser un UUID valido.');
+    }
     return this.registrarRespuesta.ejecutar({
       usuario,
       intentoId,

@@ -19,6 +19,24 @@ export function esUuidValido(valor: string): boolean {
 }
 
 /**
+ * Normaliza un UUID canonico (8-4-4-4-12 con guiones) a minusculas, para
+ * aceptar el mismo identificador escrito en mayusculas (CONTRATOS.md
+ * seccion 4) en rutas, encabezados y cuerpos.
+ *
+ * Solo normaliza mayusculas/minusculas: una variante no canonica (con
+ * llaves, el prefijo `urn:uuid:` o sin guiones) sigue siendo invalida,
+ * aunque sus letras ya esten en minusculas.
+ *
+ * @param valor Texto a normalizar.
+ * @returns El UUID en minusculas si `valor` es valido (sin distinguir
+ * mayusculas de minusculas), o `null` si no lo es.
+ */
+export function normalizarUuid(valor: string): string | null {
+  const candidato = valor.toLowerCase();
+  return PATRON_UUID_V4.test(candidato) ? candidato : null;
+}
+
+/**
  * Genera un identificador nuevo en formato UUID v4.
  *
  * Unica dependencia permitida de la libreria estandar del lenguaje dentro

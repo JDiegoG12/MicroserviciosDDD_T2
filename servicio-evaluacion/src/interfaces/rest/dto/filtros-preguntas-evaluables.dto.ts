@@ -2,6 +2,7 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsEnum, IsOptional, IsUUID } from 'class-validator';
 import { NivelDificultad } from '../../../dominio/compartido/nivel-dificultad';
 import { EstadoPreguntaEvaluable } from '../../../dominio/preguntas-evaluables/pregunta-evaluable';
+import { NormalizarUuid } from './normalizar-uuid.transformador';
 import { PaginacionDto } from './paginacion.dto';
 
 /**
@@ -10,6 +11,7 @@ import { PaginacionDto } from './paginacion.dto';
 export class FiltrosPreguntasEvaluablesDto extends PaginacionDto {
   @ApiPropertyOptional({ format: 'uuid' })
   @IsOptional()
+  @NormalizarUuid()
   @IsUUID('4')
   competenciaId?: string;
 

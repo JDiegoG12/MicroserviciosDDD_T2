@@ -20,6 +20,12 @@ const SIN_CORRELACION = '-';
  * los logs propios de NestJS (`app.useLogger`), para que todas las lineas
  * compartan el mismo formato.
  *
+ * `idCorrelacion: "-"` es una limitacion aceptada, no un error: ocurre en
+ * lineas que no nacen de una peticion HTTP ni de un mensaje consumido
+ * (arranque del proceso, logs internos de Nest, listeners de la conexion
+ * de Mongo), donde no existe un `idCorrelacion` que propagar.
+ *
+
  * @param nivel Severidad de la linea.
  * @param mensaje Mensaje legible.
  * @param detalle Datos adicionales a incluir en la linea (opcional).
