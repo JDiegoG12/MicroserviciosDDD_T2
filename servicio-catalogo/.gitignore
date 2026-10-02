@@ -1,0 +1,10 @@
+# Código gRPC generado desde el .proto (CONTRATOS.md 6: nunca se versiona).
+# Se regenera con: python scripts/generar_grpc.py
+catalogo/interfaces/grpc/generado/
+
+# Entorno virtual y artefactos locales
+.venv/
+*.egg-info/
+.coverage
+.pytest_cache/
+__pycache__/

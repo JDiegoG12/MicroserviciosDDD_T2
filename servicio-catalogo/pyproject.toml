@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "servicio-catalogo"
+version = "0.2.0"
+description = "Catálogo Académico del Banco de Preguntas Saber Pro (Taller 2)"
+requires-python = ">=3.12"
+readme = "README.md"
+# El dominio y la aplicación usan solo la librería estándar. Las dependencias de abajo
+# las usan únicamente las capas infraestructura e interfaces (CONTRATOS.md 3.3).
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+    "pydantic>=2.8",
+    "sqlalchemy[asyncio]>=2.0.30",
+    "psycopg[binary]>=3.2",
+    "alembic>=1.13",
+    "grpcio>=1.66",
+    "grpcio-reflection>=1.66",
+    "protobuf>=5.27",
+]
+
+[project.optional-dependencies]
+# grpcio-tools genera el código gRPC desde el .proto (scripts/generar_grpc.py).
+# Se usa al construir la imagen y antes de las pruebas; no va en la imagen final.
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "pytest-asyncio>=1.4",
+    "httpx>=0.27",
+    "testcontainers[postgres]>=4.8",
+    "grpcio-tools>=1.66",
+]
+
+[tool.setuptools.packages.find]
+include = ["catalogo*"]
+
+[tool.setuptools.package-data]
+# Las migraciones de Alembic viajan dentro del paquete (plantilla incluida).
+"catalogo.infraestructura.migraciones" = ["script.py.mako"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra"
+asyncio_mode = "auto"
+markers = [
+    "integracion: usa contenedores reales con Testcontainers (requiere Docker)",
+]
