@@ -5,9 +5,9 @@ Monorepo del Taller 2 de Arquitectura de Microservicios. Contiene tres microserv
 
 | Carpeta | Servicio | Dueño | Tecnología | Puertos |
 |---|---|---|---|---|
-| `servicio-editorial/` | Gestión Editorial de Preguntas | P1 | Java 21 · Spring Boot 3 · PostgreSQL | 8081 |
+| `servicio-editorial/` | Gestión Editorial de Preguntas | P1 | Java 21 · Spring Boot 4.1.1 · PostgreSQL | 8081 |
 | `servicio-catalogo/` | Catálogo Académico | P3 | Python 3.12 · FastAPI · PostgreSQL | 8082 (REST) · 50051 (gRPC) |
-| `servicio-evaluacion/` | Evaluación y Simulacros | P2 | TypeScript · Node 20 · NestJS 10 · MongoDB | 8083 |
+| `servicio-evaluacion/` | Evaluación y Simulacros | P2 | TypeScript · Node 24 · NestJS 11 · MongoDB | 8083 |
 
 Otras carpetas: `contratos/` (proto y esquemas de eventos), `docs/arquitectura/` (diagrama entregable), `postman/` (colección y entorno), `scripts/` (validación de contratos).
 
